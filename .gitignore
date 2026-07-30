@@ -1,0 +1,45 @@
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+build/
+dist/
+
+# Local environment and secrets
+.env
+.env.*
+!.env.example
+.kaggle/
+kaggle.json
+access_token
+
+# Local data
+data/raw/*
+!data/raw/.gitkeep
+data/staged/*
+!data/staged/.gitkeep
+data/processed/*
+data/curated/*
+!data/curated/.gitkeep
+data/quarantine/*
+!data/quarantine/.gitkeep
+
+# Local databases and service volumes
+*.duckdb
+*.duckdb.wal
+postgres_data/
+superset_home/
+
+# Generated outputs
+artifacts/
+logs/
+coverage.xml
+htmlcov/
+
+# Operating system and editor
+.DS_Store
+.idea/
+.vscode/
