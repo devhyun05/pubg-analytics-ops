@@ -1,8 +1,8 @@
 # 결과 저장
 
-> 문서 상태: 초기 설계
+> 문서 상태: 환경 사망 결과 저장 구현
 >
-> 구현 상태: 미구현
+> 구현 상태: 실행 이력, 품질 결과, 공간 집계의 PostgreSQL 적재 구현
 >
 > 저장 원칙: 상세 원본은 Parquet, 운영 및 집계 결과는 PostgreSQL
 
@@ -40,15 +40,18 @@ PostgreSQL은 대시보드와 운영 조회에 필요한 작은 결과를 제공
 | 스키마 변경 | 이전·현재 버전, 변화 내용, 영향 | 운영 점검 |
 | AI 보고서 | 입력 기준 실행, 생성 상태, 생성 시각, 오류 | 운영 이력 |
 
-실제 테이블명은 구현 전에 확정한다. 초기 논리 후보는 다음과 같다.
+현재 구현한 물리 객체는 다음과 같다.
 
-- `pipeline_runs`
-- `source_files`
-- `quality_check_results`
-- `schema_change_events`
-- `gameplay_metrics`
-- `operations_metrics`
-- `ai_report_runs`
+| 객체 | 기본 키 또는 멱등 키 | 내용 |
+|---|---|---|
+| `analytics_ops.pipeline_runs` | `run_id` | 매 실행의 상태, 건수, 시간, 오류 |
+| `analytics_ops.quality_check_results` | `run_id + check_name` | 규칙별 검사 결과 |
+| `analytics_ops.environmental_hotspots` | `batch_id + map + killed_by + grid_size_m + grid_x + grid_y` | 100m 공간 집계 |
+| `analytics_ops.latest_pipeline_runs` | 뷰 | 파이프라인별 최신 실행 |
+| `analytics_ops.latest_environmental_hotspots` | 뷰 | 최신 정상 공간 집계 |
+| `analytics_ops.quality_run_summary` | 뷰 | 실행별 품질 요약 |
+
+`source_files`, 스키마 변경과 AI 보고서 이력은 후속 범위로 남긴다.
 
 ### 적재 원칙
 
@@ -65,17 +68,66 @@ PostgreSQL은 대시보드와 운영 조회에 필요한 작은 결과를 제공
 
 한 배치의 관련 결과는 가능한 범위에서 일관된 상태로 저장한다.
 
-예정 상태 흐름은 다음과 같다.
+현재 게시 상태 흐름은 다음과 같다.
 
 ```text
 RUNNING
-→ PROCESSING_COMPLETE
-→ QUALITY_COMPLETE
-→ METRICS_COMPLETE
-→ PUBLISHED
+→ SUCCEEDED
+또는
+RUNNING
+→ FAILED
 ```
 
-중간 실패는 `FAILED`와 실패 단계로 기록한다. 실제 상태 이름과 전이 규칙은 구현 전에 확정한다.
+`quality_status`는 `NOT_CHECKED`, `PASS`, `FAIL`로 별도 기록한다. 품질
+`FAIL`이면 공간 집계를 쓰지 않고 실행 상태를 `FAILED`로 종료한다.
+
+### 멱등 적재
+
+최종 Parquet의 SHA-256으로 `batch_id`를 만든다. 같은 입력을 다시 실행해도
+실행 이력은 새 `run_id`로 보존하지만, 공간 집계는 같은 `batch_id` 범위를
+트랜잭션 안에서 삭제한 뒤 현재 결과를 삽입한다. 따라서 중복 행과 과거 실행의
+잔여 격자가 생기지 않는다.
+
+### 로컬 실행
+
+```bash
+cp .env.example .env
+# POSTGRES_PASSWORD 변경
+docker compose up -d postgres
+python scripts/load_analytics_to_postgres.py
+```
+
+접속 비밀값은 `.env`에서 읽으며 출력하거나 저장소에 커밋하지 않는다.
+
+### 최초 정상 게시 결과
+
+2026-07-31 실행 `151b8437-cb67-4a55-875f-12c4a6dbac42`에서 다음 결과를
+기록했다.
+
+| 항목 | 결과 |
+|---|---:|
+| 입력 Parquet | 793,356행 |
+| 품질 검사 | 10개 `PASS` |
+| 공간 집계 | 1,600행 |
+| 파이프라인 상태 | `SUCCEEDED` |
+
+개발 과정에서 발생한 품질 게이트 실패와 컬럼 매핑 실패도 `FAILED` 실행으로
+남겼다. 실패 실행은 공간 집계를 게시하지 않았고 이후 정상 실행과 구분된다.
+
+### 현재 BI 소비자
+
+Superset은 원본 CSV나 상세 Parquet을 직접 조회하지 않고 다음 Dataset을
+PostgreSQL에서 읽는다.
+
+| Dataset | 대시보드 용도 |
+|---|---|
+| `latest_pipeline_runs` | 최신 실행 상태와 운영 KPI |
+| `quality_run_summary` | 실행별 품질 상태 이력 |
+| `latest_environmental_hotspots` | 상위 100m 격자 차트와 상세 표 |
+| `quality_check_results` | 규칙별 실패 원인 확인 |
+
+대시보드 메타데이터는 별도 `superset_metadata` 데이터베이스에 저장한다.
+분석 결과와 BI 설정을 분리하되 두 데이터베이스는 Docker 볼륨으로 유지한다.
 
 ### 보존과 정리
 
@@ -153,15 +205,8 @@ PostgreSQL 조회 결과는 [07_BI_DASHBOARD.md](07_BI_DASHBOARD.md)의 입력�
 
 ## 10. 미확정 사항
 
-- 실제 물리 테이블명과 컬럼
-- 기본 키와 고유 키
-- PostgreSQL 드라이버
-- 적재 트랜잭션 범위
-- 실행 상태 이름과 상태 전이
-- 지표 테이블의 wide 또는 long 형식
-- JSON 상세 저장 범위
-- 인덱스와 파티셔닝
-- 데이터 보존 기간
-- BI 조회용 뷰
-- 데이터베이스 사용자와 권한
-
+- 실행 및 품질 이력 보존 기간
+- Superset 조회 전용 사용자와 권한
+- 원본 배치 수준 `WARNING` 임계치
+- 스키마 변경 및 AI 보고서 이력 테이블
+- 운영 규모 증가 시 파티셔닝 필요 여부

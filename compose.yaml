@@ -1,0 +1,132 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: pubg-analytics-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:?Set POSTGRES_DB in .env}
+      POSTGRES_USER: ${POSTGRES_USER:?Set POSTGRES_USER in .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+    ports:
+      - "${POSTGRES_PORT:-5433}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./sql/postgres_schema.sql:/docker-entrypoint-initdb.d/001_schema.sql:ro
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  postgres-bootstrap:
+    image: postgres:16-alpine
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:?Set POSTGRES_DB in .env}
+      POSTGRES_USER: ${POSTGRES_USER:?Set POSTGRES_USER in .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      SUPERSET_METADATA_DB: ${SUPERSET_METADATA_DB:-superset_metadata}
+    command:
+      - /bin/sh
+      - -ec
+      - |
+        export PGPASSWORD="$${POSTGRES_PASSWORD}"
+        database_exists="$$(psql \
+          --host=postgres \
+          --username="$${POSTGRES_USER}" \
+          --dbname="$${POSTGRES_DB}" \
+          --tuples-only \
+          --no-align \
+          --command="SELECT 1 FROM pg_database WHERE datname = '$${SUPERSET_METADATA_DB}'")"
+        if [ "$${database_exists}" != "1" ]; then
+          createdb \
+            --host=postgres \
+            --username="$${POSTGRES_USER}" \
+            "$${SUPERSET_METADATA_DB}"
+        fi
+
+  superset-init:
+    image: apache/superset:6.1.0-dev
+    depends_on:
+      postgres-bootstrap:
+        condition: service_completed_successfully
+    restart: "no"
+    env_file:
+      - .env
+    environment:
+      SUPERSET_CONFIG_PATH: /app/pythonpath/superset_config.py
+    volumes:
+      - superset_home:/app/superset_home
+      - ./superset/superset_config.py:/app/pythonpath/superset_config.py:ro
+      - ./superset/init_superset.sh:/app/bootstrap/init_superset.sh:ro
+    command:
+      - /bin/bash
+      - /app/bootstrap/init_superset.sh
+
+  superset:
+    image: apache/superset:6.1.0-dev
+    depends_on:
+      superset-init:
+        condition: service_completed_successfully
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      SUPERSET_CONFIG_PATH: /app/pythonpath/superset_config.py
+    ports:
+      - "${SUPERSET_PORT:-8088}:8088"
+    volumes:
+      - superset_home:/app/superset_home
+      - ./superset/superset_config.py:/app/pythonpath/superset_config.py:ro
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "curl --fail --silent http://localhost:8088/health > /dev/null",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 18
+      start_period: 30s
+
+  heatmap-report:
+    image: python:3.12-slim
+    restart: unless-stopped
+    command:
+      [
+        "python",
+        "-m",
+        "http.server",
+        "8000",
+        "--bind",
+        "0.0.0.0",
+        "--directory",
+        "/site",
+      ]
+    ports:
+      - "${HEATMAP_REPORT_PORT:-8000}:8000"
+    volumes:
+      - ./reports:/site/reports:ro
+      - ./data/reference/maps:/site/data/reference/maps:ro
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:8000/reports/environmental_death_heatmaps.html', timeout=2).read(1)",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+
+volumes:
+  postgres_data:
+  superset_home:

@@ -1,0 +1,485 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PUBG 환경 사망 공간 집중 리포트</title>
+  <style>
+    @import url("https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css");
+    @import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&display=swap");
+
+    :root {
+      --background: #000000;
+      --panel: #111111;
+      --panel-dark: #0a0a0a;
+      --stat: #0c0c0c;
+      --boundary: #0e0e0e;
+      --border: #222222;
+      --border-soft: #1e1e1e;
+      --dashed: #2a2a2a;
+      --text: #eaeaea;
+      --title: #ffffff;
+      --secondary: #9c9c9c;
+      --muted: #8a8a8a;
+      --label: #7a7a7a;
+      --lowest: #666666;
+      --accent: #f2a900;
+      --accent-tint: rgba(242, 169, 0, 0.14);
+      --drown: #45c6ea;
+      --drown-tint: rgba(69, 198, 234, 0.13);
+      --fall: #f2a900;
+      --shadow: 0 24px 70px rgba(0, 0, 0, 0.48);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      color: var(--text);
+      background:
+        radial-gradient(circle at 12% 8%, rgba(242, 169, 0, 0.09), transparent 28rem),
+        radial-gradient(circle at 88% 22%, rgba(69, 198, 234, 0.07), transparent 31rem),
+        repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.018) 0, rgba(255, 255, 255, 0.018) 1px, transparent 1px, transparent 7px),
+        var(--background);
+      font-family: "Pretendard", sans-serif;
+    }
+
+    main { width: min(1480px, calc(100% - 32px)); margin: 0 auto; padding: 52px 0 72px; }
+
+    .eyebrow, .mono { font-family: "IBM Plex Mono", monospace; }
+    .eyebrow { color: var(--accent); font-size: 12px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; }
+    h1 { max-width: 980px; margin: 12px 0 14px; color: var(--title); font-size: clamp(38px, 6vw, 76px); line-height: 1.02; letter-spacing: -0.055em; }
+    .lede { max-width: 870px; margin: 0; color: var(--secondary); font-size: 17px; line-height: 1.7; }
+
+    .source-strip {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1px;
+      margin: 34px 0;
+      overflow: hidden;
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      background: var(--border);
+      box-shadow: var(--shadow);
+    }
+    .source-item { min-height: 104px; padding: 20px; background: var(--panel); }
+    .source-item strong { display: block; margin-bottom: 7px; color: var(--title); font-size: 15px; }
+    .source-item span { color: var(--secondary); font-size: 13px; line-height: 1.55; }
+
+    .section-head { display: flex; align-items: end; justify-content: space-between; gap: 24px; margin: 46px 0 17px; }
+    .section-head h2 { margin: 0; color: var(--title); font-size: clamp(25px, 3vw, 38px); letter-spacing: -0.035em; }
+    .section-head p { max-width: 610px; margin: 0; color: var(--secondary); font-size: 14px; line-height: 1.55; }
+
+    .candidate-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+    .candidate {
+      position: relative;
+      overflow: hidden;
+      min-height: 250px;
+      padding: 20px;
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      background: var(--panel);
+      box-shadow: 0 12px 35px rgba(0, 0, 0, 0.34);
+    }
+    .candidate-badge { display: inline-flex; padding: 5px 9px; color: var(--candidate-color); border: 1px solid var(--candidate-color); border-radius: 999px; background: var(--candidate-tint); font-family: "IBM Plex Mono", monospace; font-size: 11px; font-weight: 700; }
+    .candidate h3 { margin: 15px 0 7px; color: var(--title); font-size: 21px; line-height: 1.25; letter-spacing: -0.025em; }
+    .candidate .location { min-height: 42px; margin: 0 0 8px; color: var(--secondary); font-size: 13px; line-height: 1.5; }
+    .candidate .comparison { margin: 0 0 15px; color: var(--muted); font-family: "IBM Plex Mono", monospace; font-size: 10px; }
+    .metric-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 14px; }
+    .metric { padding: 10px; border: 1px solid var(--border-soft); border-radius: 11px; background: var(--stat); }
+    .metric b { display: block; color: var(--title); font-family: "IBM Plex Mono", monospace; font-size: 16px; }
+    .metric small { color: var(--label); font-size: 10px; }
+    .qa-action { position: relative; z-index: 1; margin: 0; font-size: 12px; line-height: 1.55; }
+    .qa-action strong { color: var(--candidate-color); }
+
+    .legend { display: flex; flex-wrap: wrap; gap: 12px 20px; align-items: center; margin: 18px 0; color: var(--secondary); font-size: 13px; }
+    .legend-item { display: inline-flex; gap: 8px; align-items: center; }
+    .swatch { width: 12px; height: 12px; border-radius: 4px; }
+    .swatch.drown { background: var(--drown); }
+    .swatch.fall { background: var(--fall); }
+    .rank-box { width: 13px; height: 13px; border: 2px solid var(--title); outline: 1px solid var(--border); background: var(--panel-dark); }
+    .detail-ramp { width: 66px; height: 12px; border: 1px solid rgba(69, 198, 234, 0.55); border-radius: 4px; background: linear-gradient(90deg, rgba(69, 198, 234, 0.14), rgba(69, 198, 234, 0.95)); }
+
+    .map-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
+    .map-card { overflow: hidden; border: 1px solid var(--border); border-radius: 21px; background: var(--panel-dark); box-shadow: var(--shadow); }
+    .map-card-header { display: flex; justify-content: space-between; gap: 16px; padding: 17px 19px; color: var(--title); border-bottom: 1px solid var(--border-soft); background: var(--panel); }
+    .map-card-header h3 { margin: 0; font-size: 18px; }
+    .map-card-header span { color: var(--muted); font-family: "IBM Plex Mono", monospace; font-size: 11px; text-align: right; }
+    .map-stage { position: relative; aspect-ratio: 1; background: var(--background); }
+    .map-stage img, .map-stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+    .map-stage img { display: block; object-fit: fill; filter: brightness(0.72) contrast(1.12) saturate(0.78); }
+    .map-stage canvas { cursor: crosshair; }
+    .rank-detail { padding: 15px; border-top: 1px solid var(--border-soft); background: var(--panel-dark); }
+    .rank-detail-title { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 11px; color: var(--secondary); font-size: 11px; }
+    .rank-detail-title strong { color: var(--title); }
+    .rank-detail-title span { font-family: "IBM Plex Mono", monospace; text-align: right; }
+    .rank-detail-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 9px; }
+    .rank-detail-card { overflow: hidden; border: 1px solid var(--border-soft); border-radius: 12px; background: var(--stat); }
+    .rank-detail-card header { display: flex; justify-content: space-between; gap: 7px; padding: 9px; color: var(--secondary); font-size: 9px; }
+    .rank-detail-card header strong { color: var(--title); font-family: "IBM Plex Mono", monospace; font-size: 13px; }
+    .rank-detail-card canvas { display: block; width: 100%; aspect-ratio: 1; cursor: crosshair; background: var(--background); }
+    .rank-detail-card p { min-height: 44px; margin: 0; padding: 8px 9px; color: var(--muted); font-family: "IBM Plex Mono", monospace; font-size: 9px; line-height: 1.45; }
+    .tooltip { position: fixed; z-index: 30; display: none; min-width: 220px; padding: 11px 13px; pointer-events: none; color: var(--text); border: 1px solid var(--dashed); border-radius: 11px; background: rgba(10, 10, 10, 0.96); box-shadow: 0 12px 28px rgba(0, 0, 0, 0.56); font-size: 12px; line-height: 1.55; }
+
+    .caveat { margin-top: 28px; padding: 22px 24px; color: var(--secondary); border: 1px dashed var(--dashed); border-left: 5px solid var(--accent); background: var(--boundary); font-size: 13px; line-height: 1.75; }
+    .caveat strong { color: var(--title); }
+    footer { margin-top: 22px; color: var(--lowest); font-family: "IBM Plex Mono", monospace; font-size: 10px; }
+
+    @media (max-width: 1080px) {
+      .candidate-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+    @media (max-width: 760px) {
+      main { width: min(100% - 20px, 1480px); padding-top: 28px; }
+      .source-strip, .map-grid { grid-template-columns: 1fr; }
+      .candidate-grid { grid-template-columns: 1fr; }
+      .rank-detail-grid { grid-template-columns: 1fr; }
+      .section-head { display: block; }
+      .section-head p { margin-top: 8px; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <div class="eyebrow">Spatial Operations Report / 100 m Grid</div>
+    <h1>환경 사망은 어디에서 반복되는가</h1>
+    <p class="lede">익사와 추락 이벤트를 100m × 100m 격자로 집계해 반복적인 집중 지역을 찾고, 상위 1·2·3위 격자 내부의 당시 지도를 확대해 QA 점검 후보를 살펴본다.</p>
+
+    <section class="source-strip" aria-label="분석 기준">
+      <div class="source-item"><strong>Erangel 기준 지도</strong><span>2017-11-03 GitHub 커밋에 고정된 8192px 지도. 데이터 수집 기간의 지형 변경 전후를 검토했다.</span></div>
+      <div class="source-item"><strong>Miramar 기준 지도</strong><span>2017-12-23 출시 시점 GitHub 커밋에 고정된 8192px 지도. 데이터 종료 후 첫 월드 변경 이전 버전이다.</span></div>
+      <div class="source-item"><strong>100m 격자 기준</strong><span>원본 좌표를 10,000cm 단위로 묶고 지도 배치 시 m로 변환한다. 지도 캔버스는 8192m, 유효 데이터 상한은 8160m다.</span></div>
+    </section>
+
+    <div class="section-head">
+      <h2>우선 QA 점검 후보</h2>
+      <p>맵·원인별 100m 격자 1위를 요약하고, 서로 다른 경기 수와 관측 날짜, 원인 내 비중을 함께 본다. 아래 지형 설명은 당시 지도에서 얻은 재현 가설이며 원인을 확정한 결과가 아니다.</p>
+    </div>
+    <section id="candidate-grid" class="candidate-grid"></section>
+
+    <div class="section-head">
+      <h2>익사·추락 히트맵</h2>
+      <p>전체 지도에는 맵·원인별 상위 400개 100m 격자를 표시한다. 각 지도 아래에서는 1·2·3위 격자에 포함된 100m × 100m 지도 영역 전체를 확대해 비교할 수 있다.</p>
+    </div>
+    <div class="legend">
+      <span class="legend-item"><i class="swatch drown"></i>익사</span>
+      <span class="legend-item"><i class="swatch fall"></i>추락</span>
+      <span class="legend-item"><i class="rank-box"></i>상위 3개 100m 격자</span>
+      <span class="legend-item"><i class="detail-ramp"></i>10m 상세 사망 건수: 적음 → 많음</span>
+      <span class="mono">MAP IMAGE: 8192 x 8192</span>
+    </div>
+    <section id="map-grid" class="map-grid"></section>
+
+    <aside class="caveat">
+      <strong>해석 경계:</strong> 이 리포트는 플레이어 방문 수나 체류 시간 분모가 없으므로 위험률이 아니라 사망 집중도를 보여준다. 전체 지도에는 파일 크기와 가독성을 위해 맵·원인별 상위 400개 격자만 표시한다. Erangel은 83개 날짜, Miramar는 21개 날짜가 관측되어 맵 간 원시 건수를 직접 비교하지 않는다. 지도는 당시 공개된 제3자 아카이브를 커밋과 해시로 고정했지만 공식 PUBG 원본 자산은 아니며, 100m 격자 내부의 특정 오브젝트와 사망의 인과관계는 QA 재현이나 더 세밀한 텔레메트리로 확인해야 한다.
+    </aside>
+    <footer id="generated-at"></footer>
+  </main>
+  <div id="tooltip" class="tooltip"></div>
+
+  <script>
+    const payload = __HEATMAP_PAYLOAD__;
+    const panels = [
+      { map: "ERANGEL", cause: "Drown", label: "에란겔 익사", image: "../data/reference/maps/Erangel_2017-11-03.jpg", reference: "2017-11-03", color: "#45c6ea", tint: "rgba(69,198,234,0.13)" },
+      { map: "ERANGEL", cause: "Falling", label: "에란겔 추락", image: "../data/reference/maps/Erangel_2017-11-03.jpg", reference: "2017-11-03", color: "#f2a900", tint: "rgba(242,169,0,0.14)" },
+      { map: "MIRAMAR", cause: "Drown", label: "미라마 익사", image: "../data/reference/maps/Miramar_2017-12-23.jpg", reference: "2017-12-23", color: "#45c6ea", tint: "rgba(69,198,234,0.13)" },
+      { map: "MIRAMAR", cause: "Falling", label: "미라마 추락", image: "../data/reference/maps/Miramar_2017-12-23.jpg", reference: "2017-12-23", color: "#f2a900", tint: "rgba(242,169,0,0.14)" }
+    ];
+    const candidateContext = {
+      "ERANGEL:Drown": { location: "Ruins 북동쪽 수로·교량 인접 구간", action: "강 진입 후 탈출 지점, 수변 충돌, 교량 접근 동선을 재현 점검" },
+      "ERANGEL:Falling": { location: "Sosnovka Military Base 북서 시설 구간", action: "옥상·계단·난간·고저차 및 볼팅 후 낙하 동선을 재현 점검" },
+      "MIRAMAR:Drown": { location: "동쪽 해안의 섬 군집과 선착장 구간", action: "섬 사이 수영, 해안 상륙, 급경사 수변 충돌과 이탈 경로를 재현 점검" },
+      "MIRAMAR:Falling": { location: "Los Leones 중심 도심 구간", action: "다층 건물 옥상, 계단, 난간과 공사 구조물 주변 낙하 동선을 재현 점검" }
+    };
+    const formatter = new Intl.NumberFormat("ko-KR");
+    const tooltip = document.getElementById("tooltip");
+
+    function panelRows(panel) {
+      return payload.rows.filter(row => row.map === panel.map && row.killed_by === panel.cause);
+    }
+
+    function detailRows(panel, parentRank) {
+      return payload.detail_rows.filter(
+        row => row.map === panel.map
+          && row.killed_by === panel.cause
+          && Number(row.parent_rank) === Number(parentRank)
+      );
+    }
+
+    function rangeText(row) {
+      const startX = Number(row.grid_x) * payload.grid_size_m;
+      const startY = Number(row.grid_y) * payload.grid_size_m;
+      const decimals = payload.grid_size_m < 100 ? 2 : 1;
+      return `X ${(startX / 1000).toFixed(decimals)}~${((startX + payload.grid_size_m) / 1000).toFixed(decimals)}km · Y ${(startY / 1000).toFixed(decimals)}~${((startY + payload.grid_size_m) / 1000).toFixed(decimals)}km`;
+    }
+
+    function renderCandidates() {
+      const container = document.getElementById("candidate-grid");
+      panels.forEach(panel => {
+        const rankedRows = panelRows(panel).sort((a, b) => Number(a.heat_rank) - Number(b.heat_rank));
+        const row = rankedRows[0];
+        if (!row) return;
+        const second = rankedRows[1];
+        const context = candidateContext[`${panel.map}:${panel.cause}`];
+        const leadPct = second
+          ? (Number(row.death_count) - Number(second.death_count)) / Number(second.death_count) * 100
+          : 0;
+        const card = document.createElement("article");
+        card.className = "candidate";
+        card.style.setProperty("--candidate-color", panel.color);
+        card.style.setProperty("--candidate-tint", panel.tint);
+        card.innerHTML = `
+          <span class="candidate-badge">${panel.label} · 1순위</span>
+          <h3>${rangeText(row)}</h3>
+          <p class="location">${context.location}</p>
+          <p class="comparison">2순위보다 ${leadPct.toFixed(1)}% 많음 · ${payload.grid_size_m}m × ${payload.grid_size_m}m = ${formatter.format(payload.grid_size_m ** 2)}㎡</p>
+          <div class="metric-row">
+            <div class="metric"><b>${formatter.format(row.death_count)}</b><small>사망 건수</small></div>
+            <div class="metric"><b>${formatter.format(row.match_count)}</b><small>관측 경기</small></div>
+            <div class="metric"><b>${formatter.format(row.date_count)}일</b><small>관측된 날짜 수</small></div>
+            <div class="metric"><b>${Number(row.share_pct).toFixed(3)}%</b><small>같은 맵·원인 내 비중</small></div>
+          </div>
+          <p class="qa-action"><strong>QA 가설</strong> ${context.action}</p>`;
+        container.appendChild(card);
+      });
+    }
+
+    function rgba(hex, alpha) {
+      const value = parseInt(hex.slice(1), 16);
+      return `rgba(${value >> 16}, ${(value >> 8) & 255}, ${value & 255}, ${alpha})`;
+    }
+
+    function showRowTooltip(event, panel, row) {
+      tooltip.innerHTML = `<strong>${panel.label} · #${row.heat_rank}</strong><br>${rangeText(row)}<br>사망 ${formatter.format(row.death_count)}건 · 경기 ${formatter.format(row.match_count)}개<br>관측된 날짜 ${formatter.format(row.date_count)}일<br><strong>같은 맵·원인 내 비중 ${Number(row.share_pct).toFixed(3)}%</strong>`;
+      tooltip.style.display = "block";
+      tooltip.style.left = `${Math.min(event.clientX + 14, window.innerWidth - 250)}px`;
+      tooltip.style.top = `${Math.min(event.clientY + 14, window.innerHeight - 110)}px`;
+    }
+
+    function detailRangeText(row) {
+      const startX = Number(row.detail_grid_x) * payload.detail_grid_size_m;
+      const startY = Number(row.detail_grid_y) * payload.detail_grid_size_m;
+      return `X ${(startX / 1000).toFixed(2)}~${((startX + payload.detail_grid_size_m) / 1000).toFixed(2)}km · Y ${(startY / 1000).toFixed(2)}~${((startY + payload.detail_grid_size_m) / 1000).toFixed(2)}km`;
+    }
+
+    function showDetailTooltip(event, panel, parentRow, row) {
+      tooltip.innerHTML = `<strong>${panel.label} · #${parentRow.heat_rank} 내부 10m 격자</strong><br>${detailRangeText(row)}<br>사망 ${formatter.format(row.death_count)}건 · 경기 ${formatter.format(row.match_count)}개<br>관측된 날짜 ${formatter.format(row.date_count)}일<br><strong>해당 100m 격자 내 비중 ${Number(row.parent_share_pct).toFixed(2)}%</strong>`;
+      tooltip.style.display = "block";
+      tooltip.style.left = `${Math.min(event.clientX + 14, window.innerWidth - 270)}px`;
+      tooltip.style.top = `${Math.min(event.clientY + 14, window.innerHeight - 110)}px`;
+    }
+
+    function renderMap(panel) {
+      const rows = panelRows(panel).sort((a, b) => Number(a.heat_rank) - Number(b.heat_rank));
+      const topRows = rows.slice(0, 3);
+      if (!topRows.length) return;
+      const card = document.createElement("article");
+      card.className = "map-card";
+      card.innerHTML = `
+        <header class="map-card-header"><h3>${panel.label}</h3><span>REFERENCE ${panel.reference}<br>${formatter.format(rows.length)} CELLS</span></header>
+        <div class="map-stage"><img src="${panel.image}" alt="${panel.label} 당시 지도"><canvas aria-label="${panel.label} 전체 히트맵"></canvas></div>
+        <div class="rank-detail">
+          <div class="rank-detail-title"><strong>상위 1·2·3위 내부 10m 상세 분포</strong><span>EACH VIEW ${payload.grid_size_m}m × ${payload.grid_size_m}m</span></div>
+          <div class="rank-detail-grid">
+            ${topRows.map(row => `
+              <article class="rank-detail-card">
+                <header><strong>#${row.heat_rank}</strong><span>${formatter.format(row.death_count)}건<br>${formatter.format(row.match_count)}경기</span></header>
+                <canvas data-rank="${row.heat_rank}" aria-label="${panel.label} ${row.heat_rank}순위 격자 내부 지도"></canvas>
+                <p>${rangeText(row)}<br>${formatter.format(row.date_count)}일 · ${Number(row.share_pct).toFixed(2)}%</p>
+              </article>`).join("")}
+          </div>
+        </div>`;
+      document.getElementById("map-grid").appendChild(card);
+
+      const canvas = card.querySelector(".map-stage canvas");
+      const rankCanvases = [...card.querySelectorAll(".rank-detail-card canvas")];
+      const mapImage = card.querySelector(".map-stage img");
+      const size = 1024;
+      canvas.width = size;
+      canvas.height = size;
+      const context = canvas.getContext("2d");
+      const maxDeaths = Math.max(...rows.map(row => Number(row.death_count)), 1);
+      const scale = size / payload.map_image_extent_m;
+      const overviewCellSize = Math.max(payload.grid_size_m * scale, 1);
+
+      [...rows].sort((a, b) => Number(a.death_count) - Number(b.death_count)).forEach(row => {
+        const intensity = Math.sqrt(Number(row.death_count) / maxDeaths);
+        const centerX = (Number(row.grid_x) * payload.grid_size_m + payload.grid_size_m / 2) * scale;
+        const centerY = (Number(row.grid_y) * payload.grid_size_m + payload.grid_size_m / 2) * scale;
+        const radius = 10 + intensity * 40;
+        const gradient = context.createRadialGradient(centerX, centerY, 0, centerX, centerY, radius);
+        gradient.addColorStop(0, rgba(panel.color, 0.28 + intensity * 0.62));
+        gradient.addColorStop(0.45, rgba(panel.color, 0.18 + intensity * 0.35));
+        gradient.addColorStop(1, rgba(panel.color, 0));
+        context.fillStyle = gradient;
+        context.fillRect(centerX - radius, centerY - radius, radius * 2, radius * 2);
+      });
+
+      rows.filter(row => Number(row.heat_rank) <= 3).forEach(row => {
+        const centerX = (Number(row.grid_x) * payload.grid_size_m + payload.grid_size_m / 2) * scale;
+        const centerY = (Number(row.grid_y) * payload.grid_size_m + payload.grid_size_m / 2) * scale;
+        const markerSize = Math.max(overviewCellSize, 6);
+        context.fillStyle = rgba(panel.color, 0.22);
+        context.fillRect(
+          centerX - markerSize / 2,
+          centerY - markerSize / 2,
+          markerSize,
+          markerSize
+        );
+        context.lineWidth = 3;
+        context.strokeStyle = "rgba(255,255,255,0.96)";
+        context.strokeRect(centerX - markerSize / 2, centerY - markerSize / 2, markerSize, markerSize);
+        context.fillStyle = "#fff";
+        context.font = "700 16px IBM Plex Mono";
+        context.fillText(String(row.heat_rank), centerX + markerSize / 2 + 4, centerY + 5);
+      });
+
+      canvas.addEventListener("mousemove", event => {
+        const bounds = canvas.getBoundingClientRect();
+        const pointerX = (event.clientX - bounds.left) / bounds.width * size;
+        const pointerY = (event.clientY - bounds.top) / bounds.height * size;
+        let nearestRow = null;
+        let nearestDistance = Infinity;
+        rows.forEach(row => {
+          const centerX = (Number(row.grid_x) * payload.grid_size_m + payload.grid_size_m / 2) * scale;
+          const centerY = (Number(row.grid_y) * payload.grid_size_m + payload.grid_size_m / 2) * scale;
+          const distance = Math.hypot(pointerX - centerX, pointerY - centerY);
+          if (distance < nearestDistance) {
+            nearestDistance = distance;
+            nearestRow = row;
+          }
+        });
+        if (!nearestRow || nearestDistance > 14) {
+          tooltip.style.display = "none";
+          return;
+        }
+        showRowTooltip(event, panel, nearestRow);
+      });
+      canvas.addEventListener("mouseleave", () => { tooltip.style.display = "none"; });
+
+      function drawRankMaps() {
+        rankCanvases.forEach((rankCanvas, index) => {
+          const row = topRows[index];
+          if (!row) return;
+          const cells = detailRows(panel, row.heat_rank);
+          const startX = Number(row.grid_x) * payload.grid_size_m;
+          const startY = Number(row.grid_y) * payload.grid_size_m;
+          const sourceX = startX / payload.map_image_extent_m * mapImage.naturalWidth;
+          const sourceY = startY / payload.map_image_extent_m * mapImage.naturalHeight;
+          const sourceSizeX = payload.grid_size_m / payload.map_image_extent_m * mapImage.naturalWidth;
+          const sourceSizeY = payload.grid_size_m / payload.map_image_extent_m * mapImage.naturalHeight;
+          rankCanvas.width = 500;
+          rankCanvas.height = 500;
+          const rankContext = rankCanvas.getContext("2d");
+          rankContext.filter = "brightness(0.82) contrast(1.12) saturate(0.86)";
+          rankContext.drawImage(
+            mapImage,
+            sourceX,
+            sourceY,
+            sourceSizeX,
+            sourceSizeY,
+            0,
+            0,
+            rankCanvas.width,
+            rankCanvas.height
+          );
+          rankContext.filter = "none";
+
+          const maxDetailDeaths = Math.max(
+            ...cells.map(cell => Number(cell.death_count)),
+            1
+          );
+          const detailScale = rankCanvas.width / payload.grid_size_m;
+          cells
+            .sort((a, b) => Number(a.death_count) - Number(b.death_count))
+            .forEach(cell => {
+              const cellStartX = Number(cell.detail_grid_x) * payload.detail_grid_size_m;
+              const cellStartY = Number(cell.detail_grid_y) * payload.detail_grid_size_m;
+              const x = (cellStartX - startX) * detailScale;
+              const y = (cellStartY - startY) * detailScale;
+              const cellSize = payload.detail_grid_size_m * detailScale;
+              const intensity = Math.sqrt(Number(cell.death_count) / maxDetailDeaths);
+              rankContext.fillStyle = `rgba(69,198,234,${0.10 + intensity * 0.82})`;
+              rankContext.fillRect(x, y, cellSize, cellSize);
+            });
+
+          rankContext.strokeStyle = "rgba(255,255,255,0.22)";
+          rankContext.lineWidth = 1;
+          for (
+            let offset = 0;
+            offset <= payload.grid_size_m;
+            offset += payload.detail_grid_size_m
+          ) {
+            const position = offset * detailScale;
+            rankContext.beginPath();
+            rankContext.moveTo(position, 0);
+            rankContext.lineTo(position, rankCanvas.height);
+            rankContext.stroke();
+            rankContext.beginPath();
+            rankContext.moveTo(0, position);
+            rankContext.lineTo(rankCanvas.width, position);
+            rankContext.stroke();
+          }
+
+          const hottestCell = cells.find(cell => Number(cell.detail_rank) === 1);
+          if (hottestCell) {
+            const hottestX = (
+              Number(hottestCell.detail_grid_x) * payload.detail_grid_size_m
+              - startX
+            ) * detailScale;
+            const hottestY = (
+              Number(hottestCell.detail_grid_y) * payload.detail_grid_size_m
+              - startY
+            ) * detailScale;
+            const detailCellSize = payload.detail_grid_size_m * detailScale;
+            rankContext.strokeStyle = "#ffffff";
+            rankContext.lineWidth = 4;
+            rankContext.strokeRect(
+              hottestX + 2,
+              hottestY + 2,
+              detailCellSize - 4,
+              detailCellSize - 4
+            );
+          }
+        });
+      }
+
+      if (mapImage.complete) {
+        drawRankMaps();
+      } else {
+        mapImage.addEventListener("load", drawRankMaps, { once: true });
+      }
+
+      rankCanvases.forEach((rankCanvas, index) => {
+        rankCanvas.addEventListener("mousemove", event => {
+          const parentRow = topRows[index];
+          const bounds = rankCanvas.getBoundingClientRect();
+          const localX = (event.clientX - bounds.left) / bounds.width * payload.grid_size_m;
+          const localY = (event.clientY - bounds.top) / bounds.height * payload.grid_size_m;
+          const parentStartX = Number(parentRow.grid_x) * payload.grid_size_m;
+          const parentStartY = Number(parentRow.grid_y) * payload.grid_size_m;
+          const detailGridX = Math.floor(
+            (parentStartX + localX) / payload.detail_grid_size_m
+          );
+          const detailGridY = Math.floor(
+            (parentStartY + localY) / payload.detail_grid_size_m
+          );
+          const cell = detailRows(panel, parentRow.heat_rank).find(
+            item => Number(item.detail_grid_x) === detailGridX
+              && Number(item.detail_grid_y) === detailGridY
+          );
+          if (!cell) {
+            tooltip.style.display = "none";
+            return;
+          }
+          showDetailTooltip(event, panel, parentRow, cell);
+        });
+        rankCanvas.addEventListener("mouseleave", () => { tooltip.style.display = "none"; });
+      });
+    }
+
+    renderCandidates();
+    panels.forEach(renderMap);
+    document.getElementById("generated-at").textContent = `GENERATED ${payload.generated_at} · GRID ${payload.grid_size_m}M · LOCAL REPORT`;
+  </script>
+</body>
+</html>
