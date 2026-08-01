@@ -7,7 +7,6 @@ from typing import Any
 
 import duckdb
 
-
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DEATHS_PATTERN = (
     PROJECT_ROOT

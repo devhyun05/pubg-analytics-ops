@@ -3,7 +3,6 @@ from time import perf_counter
 
 import duckdb
 
-
 DEATHS_GLOB = "data/staged/deaths/kill_match_stats_final_*.csv"
 AGGREGATE_GLOB = "data/staged/aggregate/agg_match_stats_*.csv"
 
@@ -125,6 +124,24 @@ def build_quality_classification(
             environmental_deaths_classified AS
 
         SELECT
+            MD5(
+                TO_JSON(
+                    STRUCT_PACK(
+                        killed_by_value := killed_by,
+                        killer_name_value := killer_name,
+                        killer_placement_value := killer_placement,
+                        killer_position_x_value := killer_position_x,
+                        killer_position_y_value := killer_position_y,
+                        map_value := map,
+                        match_id_value := match_id,
+                        time_value := time,
+                        victim_name_value := victim_name,
+                        victim_placement_value := victim_placement,
+                        victim_position_x_value := victim_position_x,
+                        victim_position_y_value := victim_position_y
+                    )
+                )
+            ) AS event_id,
             killed_by,
             UPPER(TRIM(map)) AS map,
             TRIM(match_id) AS match_id,
@@ -172,6 +189,7 @@ def build_quality_classification(
             environmental_deaths_quality_filtered AS
 
         SELECT
+            event_id,
             killed_by,
             map,
             match_id,
@@ -231,6 +249,7 @@ def build_environmental_deaths_with_date(
             environmental_deaths_with_date AS
 
         SELECT
+            deaths.event_id,
             deaths.killed_by,
             deaths.map,
             deaths.match_id,
@@ -299,6 +318,7 @@ def build_final_environmental_deaths(
             environmental_deaths_clean AS
 
         SELECT
+            event_id,
             killed_by,
             map,
             match_id,

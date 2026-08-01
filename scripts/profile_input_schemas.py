@@ -6,7 +6,6 @@ from time import perf_counter
 
 import duckdb
 
-
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 INPUT_GROUPS = {
     "deaths": (
