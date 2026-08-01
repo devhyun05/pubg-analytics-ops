@@ -2,7 +2,7 @@
 
 > 문서 상태: 로컬 입력 확인 진행
 >
-> 구현 상태: staged CSV 10개와 지도 이미지 2개 확인, 다운로드 이력·체크섬 미기록
+> 구현 상태: staged CSV 10개와 지도 이미지 2개 확인, 최신 PUBG API 하루치 표본 목록 수집 완료
 >
 > 공개 메타데이터 확인일: 2026-07-30
 
@@ -223,3 +223,66 @@ data/
 - 지도 이미지 원 제작자와 Kaggle 배포 사이의 권리 관계
 - Miramar 이미지의 정확한 제작일과 대응 게임 빌드
 - 두 지도 이미지의 바깥 경계와 게임 좌표 범위의 정확한 정렬 여부
+
+## 11. 최신 PUBG 공식 API 후속 입력
+
+과거 Kaggle 데이터의 맵 버전 한계를 보완하기 위해 현재 PUBG 공식 API의 최근
+경기 표본을 후속 입력 후보로 추가했다. 이 입력은 기존 대규모 분석을 대체하지
+않고, 동일한 품질·공간 지표를 현행 맵 데이터에 적용할 수 있는지 확인하는
+파일럿에 사용한다.
+
+확인한 공식 자료는 다음과 같다.
+
+- API 키: https://documentation.pubg.com/en/api-keys.html
+- 경기 표본: https://documentation.pubg.com/en/getting-started.html
+- 데이터 보존 기간: https://documentation.pubg.com/en/making-requests.html
+- 텔레메트리: https://documentation.pubg.com/en/telemetry.html
+- 텔레메트리 이벤트: https://documentation.pubg.com/en/telemetry-events.html
+- 좌표 명세: https://documentation.pubg.com/en/telemetry-objects.html
+- 공식 지도 이미지: https://github.com/pubg/api-assets/tree/master/Assets/Maps
+
+확인된 입력 특성과 제한은 다음과 같다.
+
+| 항목 | 확인 내용 |
+|---|---|
+| 제공 방식 | 무료 PUBG Developer API |
+| 인증 | Bearer API 키 필요 |
+| 기본 호출 제한 | 분당 10회 |
+| 조회 가능 기간 | 최근 14일 |
+| 표본 성격 | 플랫폼별 무작위 경기 참조 목록 |
+| 상세 데이터 | 경기 객체와 텔레메트리 JSON |
+| 지도·좌표 | 맵 이름과 cm 단위 위치 좌표 제공 |
+| 해석 제한 | 전체 경기 수나 전체 이용자 수 추정에 사용할 수 없음 |
+
+`scripts/collect_pubg_api_samples.py`는 API 키를 코드나 파일에 저장하지 않고
+환경 변수 또는 터미널 숨김 입력으로 받는다. 같은 구간의 응답이 있으면 기본적으로
+로컬 파일을 재사용하고, 원본 응답은 Git에서 제외되는
+`data/raw/pubg_api/samples` 아래에 저장한다.
+
+첫 파일럿 명령은 다음과 같다.
+
+```bash
+python scripts/collect_pubg_api_samples.py --platform steam --days 1
+```
+
+하루치 경기 ID 수와 저장 크기를 확인한 뒤 승인된 경우에만 14일로 확장한다.
+
+```bash
+python scripts/collect_pubg_api_samples.py --platform steam --days 14
+```
+
+2026-08-01에 `steam` 플랫폼의 최신 하루치 표본 목록을 실제로 수집했다.
+
+| 측정 항목 | 결과 |
+|---|---:|
+| 경기 ID 참조 수 | 968 |
+| 고유 경기 ID 수 | 968 |
+| 중복 경기 ID 수 | 0 |
+| 실행 시간 | 9.75초 |
+| 조회 구간 수 | 1일 |
+
+저장 위치는 `data/raw/pubg_api/samples/steam`이며 원본 응답은 Git에서 제외한다.
+표본 목록 수집 후 10개 경기의 상세와 텔레메트리를 키 없이 조회하는 스키마
+파일럿을 실행했다. 968개 전체 경기 상세 조회와 텔레메트리 저장은 아직 실행하지
+않았다. 최신 텔레메트리의 구체적인 파일럿 결과와 환경 사망 분류의 미확정 사항은
+`02_DATA_PROFILING.md`에 기록한다.

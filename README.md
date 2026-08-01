@@ -1,116 +1,146 @@
 # PUBG Analytics Operations
 
-PUBG 경기 및 사망 이벤트 데이터를 분석가가 안정적으로 사용할 수 있도록 프로파일링, 정제, 품질 검사, 지표 계산과 운영 상태 보고를 자동화하는 포트폴리오 프로젝트다.
+## 문제 정의
 
-현재 저장소에는 전체 deaths·aggregate 입력 프로파일러와 환경 사망 정제
-파이프라인이 구현되어 있다. 공간 집중 지표, PostgreSQL 적재, Superset
-대시보드와 AI 운영 보고서는 아직 구현하지 않았으며 완료 여부를 구분해
+Kaggle에서 약 6,500만 건의 PUBG 사망 데이터를 찾았다. 이 프로젝트에서
+최종 분석한 경기 날짜는 2017년 10월 20일부터 2018년 1월 10일까지였다.
+데이터에는 사망 원인과 피해자 좌표가 포함되어 있어, 추락과 익사가 맵의
+특정 위치에 반복적으로 집중되는지 궁금했다. 집중 지점이 확인된다면 해당
+위치의 지형과 오브젝트를 우선 점검하고 개선 필요성을 검토할 수 있다고
+생각했다.
+
+## 분석 가능성 검토
+
+사망 CSV에는 사망 원인, 가해자와 피해자 이름·순위·좌표, 맵,
+경기 식별자, 사망 시점 등 12개 컬럼이 있었다. 이 중 환경 사망의
+위치와 경기별 반복 여부를 확인하기 위해 `killed_by`, `map`,
+`match_id`, `victim_position_x`, `victim_position_y`를 선택했다.
+
+사망 CSV에는 경기 날짜가 없었기 때문에 aggregate CSV에서
+`match_id`와 `date`로 구성된 날짜 테이블을 만들었다. 이후 사망
+데이터와 날짜 테이블을 `match_id` 기준으로 SQL `LEFT JOIN`하고,
+날짜가 정상적으로 연결된 행만 최종 분석에 사용했다.
+
+## 데이터 품질 검증
+
+`killed_by`가 `Falling` 또는 `Drown`인 980,079건을 환경 사망
+후보로 정의했다. 이후 동일한 사망이 중복 집계되거나 공간·날짜 분석이
+불가능한 행을 제외하기 위해 다음 규칙을 순서대로 적용했다.
+
+| 검사 규칙 | 제외 건수 | 적용 이유 |
+| --- | ---: | --- |
+| 완전히 동일한 행 | 65건 | 동일한 사망 이벤트의 중복 집계 방지 |
+| `map`이 NULL 또는 빈 문자열 | 10,453건 | 발생한 맵을 식별할 수 없음 |
+| 에란겔·미라마 외 맵 | 0건 | 분석 범위에 포함되지 않는 맵 확인 |
+| `match_id`가 NULL 또는 빈 문자열 | 0건 | 경기 및 날짜와 연결할 수 없음 |
+| 피해자 X·Y 좌표가 NULL | 0건 | 공간 분석을 수행할 수 없음 |
+| 피해자 좌표가 `(0,0)` | 176,152건 | 실제 사망 위치로 해석할 수 없음 |
+| 좌표가 `0~816,000cm` 범위를 벗어남 | 25건 | 지도 범위에 정상적으로 표시할 수 없음 |
+| aggregate 데이터와 날짜 연결 실패 | 28건 | 경기 날짜를 확인할 수 없음 |
+| 날짜 누락 또는 파싱 실패 | 0건 | 날짜별 반복 여부를 측정할 수 없음 |
+| 하나의 경기 ID에 여러 날짜가 연결됨 | 0건 | 경기 날짜를 하나로 확정할 수 없음 |
+
+품질 규칙 적용 후 793,356건을 최종 분석 데이터로 사용했다. 환경 사망
+후보의 80.95%가 유지됐으며 총 186,723건이 제외됐다. 제외 건수는 규칙을
+순서대로 적용한 결과이므로 규칙 간 중복으로 계산되지 않는다.
+
+`(0,0)` 좌표는 잘못된 데이터라고 확정한 것이 아니다. 다만 실제 맵의
+사망 위치로 해석할 근거가 없어 이번 공간 분석 범위에서 제외했다.
+
+## 공간 집중 지표 설계
+
+환경 사망이 집중되는 지역을 비교하기 위해 피해자 좌표를 100m × 100m
+격자로 변환했다. 원본 좌표를 cm 단위로 해석했기 때문에 X·Y 좌표를 각각
+10,000으로 나눈 몫을 격자 번호로 사용했다. 100m는 전체 맵에서 후보
+지역을 비교하기 위한 단위이며 특정 오브젝트의 크기를 의미하지 않는다.
+
+```sql
+FLOOR(victim_position_x / 10_000) AS grid_x,
+FLOOR(victim_position_y / 10_000) AS grid_y
+```
+
+맵·사망 원인·격자별로 다음 지표를 집계했다.
+
+| 지표 | 의미 |
+| --- | --- |
+| `death_count` | 격자에서 발생한 환경 사망 건수 |
+| `match_count` | 환경 사망이 관측된 서로 다른 경기 수 |
+| `date_count` | 환경 사망이 관측된 날짜 수 |
+| `share_pct` | 같은 맵·사망 원인 전체에서 해당 격자가 차지하는 비중 |
+| `heat_rank` | 같은 맵·사망 원인 안에서의 사망 건수 순위 |
+
+사망 건수가 많은 순서로 순위를 부여하고, 사망 건수가 같으면 서로 다른
+경기 수가 많은 격자를 우선했다. 맵·사망 원인별 상위 1·2·3위 100m
+격자는 다시 10m × 10m로 세분화했다. 각 후보 내부에서 사망 건수가 많은
+10m 격자를 진한 색으로 표시해 QA가 확인할 위치를 더 구체적으로 좁혔다.
+
+## 환경 사망 공간 집중 결과
+
+기존 환경 사망 분석은 보조 분석으로 유지했다. 최종 793,356건을 100m 격자로
+집계한 결과, 맵·원인별 최상위 후보는 다음과 같았다.
+
+| 맵 | 원인 | 최상위 100m 격자 사망 | 관측 경기 | 관측 날짜 | 해당 맵·원인 내 비중 |
+| --- | --- | ---: | ---: | ---: | ---: |
+| 에란겔 | 추락 | 11,832건 | 11,417경기 | 83일 | 2.03% |
+| 에란겔 | 익사 | 3,480건 | 3,253경기 | 83일 | 3.58% |
+| 미라마 | 추락 | 3,542건 | 3,314경기 | 21일 | 3.43% |
+| 미라마 | 익사 | 143건 | 134경기 | 21일 | 1.59% |
+
+이 결과는 특정 위치의 문제를 확정하는 증거가 아니라, 지형과 오브젝트를 먼저
+재현 점검할 QA 후보를 정하는 지표다. 전체 결과와 당시 지도 기반 히트맵은
+[환경 사망 지도 보고서](reports/environmental_death_heatmaps.html)에서 확인할 수 있다.
+
+## 무기별 사망 시점 거리 분석
+
+환경 사망 분석을 유지하면서, 더 직관적인 메인 질문을 추가했다.
+
+> 샷건, 기관단총, 돌격소총, 지정사수소총, 저격총은 실제 킬이 발생한 거리에서
+> 서로 다른 역할을 보이며, 같은 무기의 거리 특성은 맵이 달라져도 유지되는가?
+
+공격자와 피해자의 사망 시점 XY 좌표 차이를 직선거리로 계산했다. NULL·(0,0)·좌표
+범위 밖·자기 사망을 제외하고, 총기와 석궁에 의한 직접 사망 이벤트만 사용했다.
+극단값이 결론을 왜곡하지 않도록 최대 거리 대신 중앙값, 75·90·99백분위수를
+집계했다. 이 거리는 탄환 비행거리나 교전 시작 거리가 아니라 **사망 시점의 두
+플레이어 간 거리**다.
+
+### 주요 관찰
+
+| 비교 | 관찰 결과 | 해석 |
+| --- | --- | --- |
+| 무기군 간 거리 | 샷건 중앙값은 약 4.5m, 저격총은 약 110m 이상 | 무기 역할이 실제 킬 거리에서도 선명하게 분리됨 |
+| DMR 내부 | VSS·Mini 14와 SKS·Mk14 사이에 거리 프로필 차이 | 같은 DMR 분류 안에서도 사용 역할이 하나가 아님 |
+| 맵 간 비교 | 동일 무기의 에란겔·미라마 중앙값 차이는 대체로 무기군 간 차이보다 작음 | 맵보다 무기 역할이 킬 거리에 더 크게 연결된 패턴 |
+
+이 결과만으로 특정 무기가 강하거나 약하다고 판정하지 않는다. 원본에는 무기별
+사용 횟수, 발사·명중·실패가 없어 선택률이나 승률의 분모를 계산할 수 없기
+때문이다. 대신 역할이 겹치거나 같은 무기군에서 거리 특성이 크게 다른 무기를
+패치 전후 및 추가 텔레메트리 검증 후보로 좁히는 데 사용한다.
+
+보고서는 다음 명령으로 다시 생성할 수 있다.
+
+    python scripts/build_weapon_kill_distance_report.py
+
+상세 프로필과 맵 비교는 [무기별 사망 시점 거리 보고서](reports/weapon_kill_distance.html)에서
+확인할 수 있다.
+
+## References
+
+- [PUBG Match Deaths and Statistics](https://www.kaggle.com/datasets/skihikingkevin/pubg-match-deaths)
+  - 원본 사망 이벤트와 경기 통계 데이터셋
+- [PUBG Telemetry Objects: Location](https://documentation.pubg.com/en/telemetry-objects.html#location)
+  - 위치 좌표의 단위, 원점 및 맵별 좌표 범위
+- [PUBG API Assets](https://github.com/pubg/api-assets)
+  - PUBG 공식 데이터 사전과 공개 이미지 자산
+- [PUBG Developer API Terms of Use](https://developer.pubg.com/tos?locale=en)
+  - PUBG API 데이터와 자산의 사용 조건
+
+Kaggle 데이터셋 설명에서 좌표 단위를 직접 확인하지는 못했다. 다만 PUBG
+공식 텔레메트리 문서는 위치값을 cm 단위로 정의하고 에란겔과 미라마의
+X·Y 범위를 `0~816,000`으로 설명한다. 이 데이터셋의 좌표 컬럼도 같은
+범위를 사용하므로 본 프로젝트에서는 공식 좌표 체계를 따른 값으로
+해석했다.
+
+별도 출처가 표시되지 않은 `980,079건`, `793,356건`, 공간 집중 비율 등의
+분석 수치는 이 저장소의 파이프라인을 실행해 산출한 결과다. 데이터와 지도
+사용 범위에 관한 상세 내용은 [docs/DATA_SOURCE.md](docs/DATA_SOURCE.md)에
 기록한다.
-
-## Architecture
-
-```text
-Kaggle raw CSV
-→ DuckDB profiling
-→ Python processing
-→ curated Parquet
-→ data quality checks
-→ DuckDB SQL metrics
-→ PostgreSQL result tables
-→ Superset dashboards
-→ AI operations report
-```
-
-- 원본과 상세 데이터: 로컬 파일 및 Parquet
-- 대규모 조회와 변환: DuckDB
-- 실행 이력, 품질 결과, 집계 지표: PostgreSQL
-- 시각화: Apache Superset
-
-## Dataset
-
-- 이름: PUBG Match Deaths and Statistics
-- Kaggle 식별자: `skihikingkevin/pubg-match-deaths`
-- 표시 라이선스: CC0: Public Domain
-- 공개 논리 파일 크기: 약 20.28 GB
-- 원천 후보: `pubg.op.gg`
-
-원본 데이터와 인증 토큰은 Git에 커밋하지 않는다. 출처와 재배포 주의사항은 [데이터 출처 문서](docs/01_DATA_SOURCE_AND_INPUT.md)를 따른다.
-
-## Local setup
-
-Python 3.12를 사용한다.
-
-```bash
-python3.12 -m venv .venv
-source .venv/bin/activate
-python -m pip install --upgrade pip
-python -m pip install -e ".[dev,download]"
-```
-
-환경변수 파일이 필요하면 비밀값이 없는 예시를 기준으로 로컬 `.env`를 만든다. `.env`는 Git에서 제외된다.
-
-## Dataset download
-
-다운로드 전에 Kaggle 계정 인증과 디스크 여유 공간을 확인한다.
-
-```bash
-df -h .
-kaggle auth login
-kaggle datasets files skihikingkevin/pubg-match-deaths
-kaggle datasets download \
-  -d skihikingkevin/pubg-match-deaths \
-  -p data/raw
-```
-
-다운로드한 압축 파일은 `data/raw/`에 보관하고 수정하지 않는다. 압축 해제본은
-`data/staged/`, 재생성 가능한 정제 결과는 `data/processed/`, 품질 검증을
-통과해 최종 채택한 데이터는 `data/curated/`에 저장한다.
-
-## Environmental death pipeline
-
-현재 구현은 deaths CSV 5개에서 `Falling`과 `Drown`을 선택하고 완전 중복,
-맵, 좌표, `0,0`, 공식 좌표 범위와 날짜 연결 규칙을 적용한다.
-
-```bash
-python scripts/build_environmental_deaths.py
-```
-
-2026-07-31 전체 입력 실행 결과:
-
-| 항목 | 결과 |
-|---|---:|
-| 환경 사망 원본 후보 | 980,079행 |
-| 완전 중복 추가분 | 65행 |
-| 최종 분석 가능 | 793,356행 |
-| 전체 제외 | 186,723행 |
-| Parquet 출력 크기 | 37.58 MB |
-| 실행 시간 | 19.17초 |
-
-출력은 `data/processed/environmental_deaths.parquet`에 생성되며 실제 데이터
-파일은 Git에 커밋하지 않는다. Parquet의 성능 우위는 아직 측정하지 않았으므로
-CSV와의 조회 시간 비교 전에는 개선 효과를 주장하지 않는다.
-
-## Quality checks
-
-프로젝트 기반 코드의 기본 검사는 다음과 같다.
-
-```bash
-ruff check .
-pytest
-```
-
-실제 데이터 품질 규칙과 테스트는 데이터 프로파일링 후 확정한다.
-
-## Documentation
-
-- [전체 프로세스 흐름](docs/00_END_TO_END_FLOW.md)
-- [데이터 출처 및 입력](docs/01_DATA_SOURCE_AND_INPUT.md)
-- [데이터 프로파일링](docs/02_DATA_PROFILING.md)
-- [Python 처리](docs/03_PYTHON_PROCESSING.md)
-- [데이터 품질](docs/04_DATA_QUALITY.md)
-- [SQL 지표](docs/05_SQL_METRICS.md)
-- [결과 저장](docs/06_RESULT_STORAGE.md)
-- [BI 대시보드](docs/07_BI_DASHBOARD.md)
-- [AI 보고서](docs/08_AI_REPORT_AUTOMATION.md)
-
-구현 순서와 현재 상태는 [PLAN.md](PLAN.md)를 참고한다.

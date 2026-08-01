@@ -2,7 +2,7 @@
 
 > 문서 상태: 설계 및 예비 타당성 확인
 >
-> 구현 상태: 일회성 공간 집중 탐색 완료, 재사용 가능한 지표 SQL 미구현
+> 구현 상태: 250m 지표 실행 완료, 전역 100m 재격자 및 해상도 비교 코드 작성
 >
 > 지표 상태: 환경 사망 핫스팟 정의와 임계값 미확정
 
@@ -65,6 +65,105 @@ DuckDB 쿼리를 실행했다. 이 쿼리는 최종 지표 구현이 아니며 �
 수, 전체 사망 분모, 날짜 반복성, 격자 크기 민감도와 지도 정렬을 반영하지 않은
 탐색 결과이기 때문이다. 최종 지표는 품질 파이프라인이 생성한 793,356행에서
 다시 계산한다.
+
+### 250m 공간 집중 후보 지표
+
+재사용 가능한 1차 공간 탐색 쿼리를
+`sql/environmental_death_grid_metrics.sql`에 작성했다.
+
+지표의 집계 단위는 다음과 같다.
+
+> 한 행 = 맵 + 환경 사망 원인 + 250m 격자 한 칸
+
+원본 좌표 단위가 cm이므로 좌표를 25,000으로 나눈 몫을 격자 번호로 사용한다.
+
+```sql
+FLOOR(victim_position_x / 25_000)::INTEGER AS grid_x
+FLOOR(victim_position_y / 25_000)::INTEGER AS grid_y
+```
+
+격자별 출력 지표는 다음과 같다.
+
+| 필드 | 의미 |
+|---|---|
+| `death_count` | 해당 격자의 환경 사망 이벤트 수 |
+| `distinct_match_count` | 환경 사망이 발생한 고유 경기 수 |
+| `distinct_date_count` | 환경 사망이 발생한 고유 날짜 수 |
+| `deaths_per_match` | 해당 격자의 발생 경기당 평균 환경 사망 수 |
+| `death_share_pct` | 같은 맵·사망 원인 전체에서 격자가 차지한 비율 |
+| `hotspot_candidate_rank` | 반복 경기 수, 반복 날짜 수, 사망 수 순으로 계산한 후보 순위 |
+
+최종 조회는 `hotspot_candidate_rank <= 10` 조건으로 맵과 환경 사망 원인 조합별
+상위 10순위만 표시한다. 순위 계산에는 `DENSE_RANK`를 사용하므로 동일한 집계값을
+가진 공동 순위가 있으면 조합별 출력 행 수가 10개를 넘을 수 있다.
+
+250m는 특정 오브젝트나 지형 문제를 확정하는 최종 단위가 아니다. 전체 맵에서
+조사할 지역을 좁히기 위한 1차 탐색 단위이며, 상위 후보를 100m와 50m 격자 또는
+원본 좌표로 다시 확인한다.
+
+방문 플레이어 수나 위치별 체류 시간 분모가 없으므로 이 지표를 해당 위치의
+사망 확률 또는 위험도로 해석하지 않는다. 여러 경기와 날짜에 걸쳐 환경 사망이
+반복된 QA 점검 후보로만 사용한다.
+
+### 보고서용 표현 계층
+
+계산용 지표와 사람이 읽는 보고서 출력을 분리한다.
+
+- 계산용 SQL: `sql/environmental_death_grid_metrics.sql`
+- 보고서용 SQL: `sql/environmental_death_hotspot_report.sql`
+- 실행 코드: `scripts/build_environmental_death_hotspot_report.py`
+
+보고서용 SQL은 후보 ID, 한글 맵·사망 원인, km 단위 좌표 범위, 반복 경기 수,
+반복 날짜 수와 자동 요약 문장을 생성한다. 수치는 SQL로 결정하며 요약 문장은
+계산 결과를 정해진 형식에 넣는 방식으로 생성한다.
+
+```bash
+python scripts/build_environmental_death_hotspot_report.py
+```
+
+실행 결과는 다음 위치에 저장한다.
+
+| 출력 | 용도 |
+|---|---|
+| `data/processed/environmental_death_hotspot_candidates_250m.csv` | 사람이 표 형태로 검토 |
+| `data/processed/environmental_death_hotspot_candidates_250m.parquet` | DuckDB 및 BI 도구 입력 |
+
+터미널에는 맵과 환경 사망 원인별 상위 3개 후보 요약만 출력하고, 두 결과
+파일에는 상위 10순위 후보 전체를 저장한다.
+
+### 전역 100m 재격자와 해상도 비교
+
+250m는 100m로 균등하게 나누어지지 않는다. 250m 후보 안을
+`100m + 100m + 50m`로 자르면 격자 면적 차이로 사망 건수 비교가 왜곡될 수
+있다. 따라서 전체 맵을 동일한 100m 격자로 독립적으로 다시 집계한다.
+
+- 100m 지표 SQL: `sql/environmental_death_grid_metrics_100m.sql`
+- 해상도 비교 SQL: `sql/environmental_death_resolution_comparison.sql`
+- 실행 코드: `scripts/build_environmental_death_hotspot_detail.py`
+
+100m 후보가 기존 250m 상위 후보와 겹치면 겹치는 면적이 가장 큰 250m 후보를
+연결한다. 여러 후보와 동일하게 겹치면 순위가 높은 250m 후보를 선택한다.
+
+| 비교 결과 | 의미 |
+|---|---|
+| `250m 우선 후보와 일치` | 100m 후보가 250m 상위 3순위 후보와 겹침 |
+| `250m 상위 후보와 일치` | 100m 후보가 250m 4~10순위 후보와 겹침 |
+| `100m 신규 후보` | 100m 후보가 250m 상위 10순위와 겹치지 않음 |
+
+```bash
+python scripts/build_environmental_death_hotspot_detail.py
+```
+
+실행 결과는 다음 위치에 저장한다.
+
+| 출력 | 용도 |
+|---|---|
+| `data/processed/environmental_death_resolution_comparison_100m.csv` | 사람이 해상도 비교 결과를 검토 |
+| `data/processed/environmental_death_resolution_comparison_100m.parquet` | DuckDB 및 BI 도구 입력 |
+
+이 비교는 250m와 100m에서 모두 높은 공간 후보를 찾는 민감도 분석이다.
+플레이어 방문량이 없으므로 해상도 일치만으로 해당 위치의 위험도를 확정하지
+않는다.
 
 ### 게임 분석 지표 후보
 

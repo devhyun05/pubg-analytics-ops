@@ -664,4 +664,74 @@ Bluezone·RedZone·차량 원인은 서로 다른 분석 질문의 후속 후보
 - Ruff 미실행
 - pytest 미실행
 
-마지막 갱신: 2026-07-31
+## 15. 최신 PUBG API 스키마 파일럿
+
+2026-08-01에 `steam` 최신 하루치 무작위 표본 968개 중 앞의 10개 경기에서
+경기 상세와 텔레메트리 JSON을 조회했다. 이 파일럿은 최신 데이터의 실제 구조와
+대략적인 전송량을 확인하기 위한 것이며 모집단 분석 결과가 아니다.
+
+실행 결과는 다음과 같다.
+
+| 항목 | 결과 |
+|---|---:|
+| 요청 경기 | 10 |
+| 성공 경기 | 10 |
+| 실패 경기 | 0 |
+| 전체 텔레메트리 이벤트 | 228,142 |
+| 사망 이벤트 | 399 |
+| 피해자 좌표가 있는 사망 이벤트 | 399 |
+| 피해자 좌표가 정확히 `0,0`인 사망 이벤트 | 0 |
+| 실제 전송 크기 | 7.16 MB |
+| 압축 해제 후 JSON 크기 | 135.87 MB |
+| 실행 시간 | 13.06초 |
+| 경기 시각 범위 | 2026-07-30 23:19:13~2026-07-31 00:54:41 UTC |
+
+맵 구성은 다음과 같았다.
+
+| API `mapName` | 경기 수 | 해석 |
+|---|---:|---|
+| `Range_Main` | 6 | 훈련장 계열, 현재 분석 대상 아님 |
+| `Desert_Main` | 2 | Miramar |
+| `Baltic_Main` | 1 | Erangel |
+| `Tiger_Main` | 1 | Taego |
+
+10개 중 6개가 분석 대상이 아닌 `Range_Main`이었다. 따라서 968개 텔레메트리를
+바로 모두 저장하지 않고, 경기 상세의 `mapName`을 먼저 조회해 `Baltic_Main`과
+`Desert_Main`만 선별한 뒤 텔레메트리를 수집한다.
+
+최신 사망 이벤트는 `LogPlayerKillV2`였으며 다음 피해정보 객체가 확인됐다.
+
+```text
+killerDamageInfo
+finishDamageInfo
+dBNODamageInfo
+```
+
+각 객체에는 다음 필드가 있었다.
+
+```text
+damageTypeCategory
+damageCauserName
+damageReason
+distance
+additionalInfo
+isThroughPenetrableWall
+```
+
+세 피해정보 객체 전체에서 `Damage_Drown` 3회와 `Damage_Instant_Fall` 1회가
+확인됐다. 이는 환경 사망 분류에 사용할 공식 후보 값이 최신 데이터에도 존재함을
+보여준다. 다만 이 숫자는 세 객체의 **필드 출현 횟수**를 합친 값으로, 고유 사망
+이벤트 수나 최종 환경 사망 건수가 아니다. DBNO 원인, 마무리 피해와 직접 사망 중
+어떤 객체를 최종 원인으로 선택할지 규칙을 먼저 정의해야 한다.
+
+재현 명령은 다음과 같다. 경기 상세와 텔레메트리 조회에는 API 키를 전달하지
+않는다.
+
+```bash
+python scripts/profile_pubg_api_pilot.py --platform steam --limit 10
+```
+
+집계 결과에는 플레이어 이름과 계정 ID를 저장하지 않는다. 결과 JSON은 Git에서
+제외되는 `data/raw/pubg_api/pilot/steam/profile_summary.json`에 기록한다.
+
+마지막 갱신: 2026-08-01
