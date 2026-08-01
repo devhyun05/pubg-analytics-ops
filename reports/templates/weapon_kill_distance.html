@@ -1,0 +1,474 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PUBG 무기별 사망 시점 거리 분석</title>
+  <style>
+    :root {
+      --bg: #000;
+      --panel: #111;
+      --panel-dark: #0a0a0a;
+      --border: #222;
+      --text: #eaeaea;
+      --title: #fff;
+      --muted: #9c9c9c;
+      --dim: #7a7a7a;
+      --yellow: #f2a900;
+      --yellow-tint: rgba(242, 169, 0, .14);
+      --blue: #45c6ea;
+      --blue-tint: rgba(69, 198, 234, .13);
+      --max: 1240px;
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      color: var(--text);
+      background:
+        radial-gradient(circle at 82% 4%, rgba(242, 169, 0, .13), transparent 29rem),
+        linear-gradient(180deg, #090909, var(--bg) 34rem);
+      font-family: Pretendard, "Noto Sans KR", sans-serif;
+      line-height: 1.65;
+    }
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      z-index: -1;
+      opacity: .07;
+      background-image: linear-gradient(#fff 1px, transparent 1px),
+        linear-gradient(90deg, #fff 1px, transparent 1px);
+      background-size: 64px 64px;
+      mask-image: linear-gradient(to bottom, #000, transparent 70%);
+    }
+    a { color: inherit; }
+    .mono { font-family: "IBM Plex Mono", "SFMono-Regular", monospace; }
+    .wrap { width: min(calc(100% - 40px), var(--max)); margin: 0 auto; }
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      border-bottom: 1px solid var(--border);
+      background: rgba(0, 0, 0, .88);
+      backdrop-filter: blur(18px);
+    }
+    .topbar .wrap { min-height: 60px; display: flex; align-items: center; gap: 24px; }
+    .brand { color: var(--yellow); font-weight: 800; letter-spacing: .08em; }
+    nav { display: flex; gap: 18px; margin-left: auto; font-size: 14px; }
+    nav a { color: var(--muted); text-decoration: none; }
+    nav a:hover, nav a.active { color: var(--title); }
+    .hero { padding: 104px 0 72px; border-bottom: 1px solid var(--border); }
+    .eyebrow {
+      color: var(--yellow);
+      font: 700 13px/1.2 "IBM Plex Mono", monospace;
+      letter-spacing: .14em;
+    }
+    h1 {
+      max-width: 960px;
+      margin: 20px 0 22px;
+      color: var(--title);
+      font-size: clamp(42px, 7vw, 86px);
+      line-height: .98;
+      letter-spacing: -.055em;
+    }
+    .hero p { max-width: 850px; margin: 0; color: var(--muted); font-size: clamp(17px, 2vw, 22px); }
+    .hero strong { color: var(--text); }
+    .metric-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 1px;
+      margin-top: 52px;
+      border: 1px solid var(--border);
+      background: var(--border);
+    }
+    .metric { min-height: 146px; padding: 24px; background: var(--panel-dark); }
+    .metric-label { color: var(--dim); font-size: 12px; }
+    .metric-value {
+      margin: 14px 0 6px;
+      color: var(--title);
+      font: 650 clamp(25px, 3vw, 39px)/1 "IBM Plex Mono", monospace;
+    }
+    .metric-note { color: var(--muted); font-size: 12px; }
+    main section { padding: 78px 0; border-bottom: 1px solid var(--border); }
+    .section-head {
+      display: grid;
+      grid-template-columns: .7fr 1.5fr;
+      gap: 48px;
+      margin-bottom: 34px;
+    }
+    .section-no { color: var(--yellow); font: 700 13px "IBM Plex Mono", monospace; }
+    h2 {
+      margin: 0 0 12px;
+      color: var(--title);
+      font-size: clamp(28px, 4vw, 48px);
+      line-height: 1.13;
+      letter-spacing: -.035em;
+    }
+    .section-copy { margin: 0; color: var(--muted); }
+    .callout {
+      padding: 22px 24px;
+      border: 1px solid rgba(69, 198, 234, .32);
+      background: var(--blue-tint);
+    }
+    .callout strong { color: var(--blue); }
+    .panel { border: 1px solid var(--border); background: var(--panel); }
+    .panel-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+      padding: 19px 22px;
+      border-bottom: 1px solid var(--border);
+    }
+    .panel-head h3 { margin: 0; color: var(--title); font-size: 16px; }
+    .legend { display: flex; gap: 18px; color: var(--muted); font-size: 12px; }
+    .legend i { display: inline-block; width: 20px; height: 3px; margin-right: 6px; background: var(--yellow); vertical-align: middle; }
+    .legend i.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--blue); }
+    .weapon-chart { padding: 16px 22px 24px; }
+    .weapon-row {
+      display: grid;
+      grid-template-columns: 110px 138px 1fr 116px;
+      gap: 14px;
+      align-items: center;
+      min-height: 45px;
+      border-bottom: 1px solid #1c1c1c;
+    }
+    .weapon-row:last-child { border-bottom: 0; }
+    .class-tag {
+      width: fit-content;
+      padding: 3px 7px;
+      color: var(--yellow);
+      background: var(--yellow-tint);
+      font: 700 11px "IBM Plex Mono", monospace;
+    }
+    .weapon-name { color: var(--text); font-weight: 650; }
+    .track {
+      position: relative;
+      height: 16px;
+      border-left: 1px solid #555;
+      background: linear-gradient(90deg, #181818, #121212);
+    }
+    .p90 {
+      position: absolute;
+      left: 0;
+      top: 6px;
+      height: 4px;
+      background: linear-gradient(90deg, rgba(242, 169, 0, .25), var(--yellow));
+    }
+    .median {
+      position: absolute;
+      top: 3px;
+      width: 10px;
+      height: 10px;
+      border: 2px solid #000;
+      border-radius: 50%;
+      background: var(--blue);
+      transform: translateX(-50%);
+      box-shadow: 0 0 0 1px var(--blue);
+    }
+    .range-value { color: var(--muted); text-align: right; font: 12px "IBM Plex Mono", monospace; }
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; min-width: 720px; border-collapse: collapse; }
+    th {
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--border);
+      color: var(--dim);
+      background: var(--panel-dark);
+      font: 600 11px "IBM Plex Mono", monospace;
+      text-align: right;
+    }
+    td {
+      padding: 14px 16px;
+      border-bottom: 1px solid #1d1d1d;
+      color: var(--muted);
+      font: 13px "IBM Plex Mono", monospace;
+      text-align: right;
+    }
+    th:first-child, td:first-child { text-align: left; }
+    tr:last-child td { border-bottom: 0; }
+    td strong { color: var(--text); }
+    .finding-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }
+    .finding { min-height: 220px; padding: 25px; border: 1px solid var(--border); background: var(--panel); }
+    .finding-index { color: var(--yellow); font: 700 12px "IBM Plex Mono", monospace; }
+    .finding h3 { margin: 36px 0 10px; color: var(--title); font-size: 22px; }
+    .finding p { margin: 0; color: var(--muted); }
+    .finding strong { color: var(--text); }
+    .method-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }
+    .method-card { padding: 23px; border: 1px solid var(--border); background: var(--panel-dark); }
+    .method-card b { display: block; margin-bottom: 8px; color: var(--title); }
+    .method-card p { margin: 0; color: var(--muted); font-size: 14px; }
+    .previous-report {
+      display: grid;
+      grid-template-columns: 1.2fr .8fr;
+      gap: 20px;
+      align-items: end;
+      padding: 32px;
+      border: 1px solid rgba(242, 169, 0, .38);
+      background: var(--yellow-tint);
+    }
+    .previous-report h3 { margin: 0 0 8px; color: var(--title); font-size: 25px; }
+    .previous-report p { margin: 0; color: var(--muted); }
+    .report-link {
+      justify-self: end;
+      padding: 13px 17px;
+      color: #000;
+      background: var(--yellow);
+      font-weight: 800;
+      text-decoration: none;
+    }
+    footer { padding: 34px 0 56px; color: var(--dim); font-size: 12px; }
+    @media (max-width: 860px) {
+      .metric-grid { grid-template-columns: repeat(2, 1fr); }
+      .section-head, .previous-report { grid-template-columns: 1fr; }
+      .weapon-row { grid-template-columns: 78px 105px 1fr; }
+      .range-value { grid-column: 2 / 4; margin: -8px 0 8px; text-align: left; }
+      .finding-grid { grid-template-columns: 1fr; }
+      .report-link { justify-self: start; }
+    }
+    @media (max-width: 560px) {
+      .wrap { width: min(calc(100% - 24px), var(--max)); }
+      .topbar .wrap { align-items: flex-start; flex-direction: column; gap: 7px; padding: 12px 0; }
+      nav { margin-left: 0; }
+      .hero { padding: 70px 0 50px; }
+      .metric-grid, .method-grid { grid-template-columns: 1fr; }
+      .weapon-chart { padding-inline: 12px; }
+      .weapon-row { grid-template-columns: 68px 88px 1fr; gap: 8px; }
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="wrap">
+      <div class="brand mono">PUBG / ANALYTICS OPS</div>
+      <nav>
+        <a class="active" href="#top">무기 거리 분석</a>
+        <a href="environmental_death_heatmaps.html">환경 사망 지도</a>
+      </nav>
+    </div>
+  </header>
+
+  <div class="hero" id="top">
+    <div class="wrap">
+      <div class="eyebrow">WEAPON DISTANCE PROFILE / 2017-2018</div>
+      <h1>무기는 실제로<br>어느 거리에서 킬을 만드는가</h1>
+      <p>사망 시점의 공격자·피해자 좌표로 무기별 거리 분포를 만들고, <strong>무기 역할이 분명히 구분되는지</strong>와 그 특성이 에란겔·미라마에서도 유지되는지 확인했습니다.</p>
+      <div class="metric-grid" id="metrics"></div>
+    </div>
+  </div>
+
+  <main>
+    <section>
+      <div class="wrap">
+        <div class="section-head">
+          <div class="section-no">01 / QUESTION</div>
+          <div>
+            <h2>누가 들어도 바로 이해할 수 있는 질문</h2>
+            <p class="section-copy">샷건, 기관단총, 돌격소총, 지정사수소총, 저격총은 실제 킬이 발생한 거리에서 서로 다른 역할을 보이는가? 같은 무기라면 맵이 달라져도 그 거리 특성이 유지되는가?</p>
+          </div>
+        </div>
+        <div class="callout"><strong>중요한 해석 경계</strong> 이 값은 탄환 비행거리나 교전 시작 거리가 아니라, 사망 이벤트가 기록된 순간의 공격자와 피해자 XY 좌표 간 직선거리입니다. 따라서 보고서에서는 이를 ‘사망 시점 거리’라고 부릅니다.</div>
+      </div>
+    </section>
+
+    <section>
+      <div class="wrap">
+        <div class="section-head">
+          <div class="section-no">02 / PROFILE</div>
+          <div>
+            <h2>무기별 거리 프로필</h2>
+            <p class="section-copy">극단값 하나가 결론을 왜곡하지 않도록 최댓값 대신 중앙값과 90백분위수를 사용했습니다. 점은 중앙값, 막대 끝은 전체 킬의 90%가 포함되는 거리입니다.</p>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="panel-head">
+            <h3>무기별 사망 시점 거리</h3>
+            <div class="legend"><span><i class="dot"></i>중앙값</span><span><i></i>90백분위</span></div>
+          </div>
+          <div class="weapon-chart" id="weapon-chart"></div>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <div class="wrap">
+        <div class="section-head">
+          <div class="section-no">03 / ROLE</div>
+          <div>
+            <h2>무기군 단위 비교</h2>
+            <p class="section-copy">개별 무기보다 한 단계 위에서 역할 구분이 실제 데이터에 나타나는지 확인합니다.</p>
+          </div>
+        </div>
+        <div class="panel table-wrap">
+          <table>
+            <thead><tr><th>무기군</th><th>킬 이벤트</th><th>중앙값</th><th>75백분위</th><th>90백분위</th><th>99백분위</th><th>100m 이상</th></tr></thead>
+            <tbody id="class-table"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <div class="wrap">
+        <div class="section-head">
+          <div class="section-no">04 / MAP TEST</div>
+          <div>
+            <h2>맵이 바뀌어도 역할은 유지되는가</h2>
+            <p class="section-copy">에란겔과 미라마 양쪽에서 각각 1만 건 이상 관측된 무기만 비교했습니다. 양수는 미라마 중앙값이 더 길다는 의미입니다.</p>
+          </div>
+        </div>
+        <div class="panel table-wrap">
+          <table>
+            <thead><tr><th>무기</th><th>무기군</th><th>에란겔 중앙값</th><th>미라마 중앙값</th><th>차이</th><th>에란겔 / 미라마 이벤트</th></tr></thead>
+            <tbody id="map-table"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <div class="wrap">
+        <div class="section-head">
+          <div class="section-no">05 / FINDINGS</div>
+          <div>
+            <h2>데이터에서 찾은 특별한 점</h2>
+            <p class="section-copy">밸런스 이상을 단정하지 않고, 다음 검증으로 이어질 수 있는 관찰 결과만 남겼습니다.</p>
+          </div>
+        </div>
+        <div class="finding-grid" id="findings"></div>
+      </div>
+    </section>
+
+    <section>
+      <div class="wrap">
+        <div class="section-head">
+          <div class="section-no">06 / METHOD</div>
+          <div>
+            <h2>재현 가능한 분석 규칙</h2>
+            <p class="section-copy">원본 CSV를 데이터베이스에 적재하지 않고 DuckDB로 직접 읽어 같은 규칙을 반복 실행할 수 있게 만들었습니다.</p>
+          </div>
+        </div>
+        <div class="method-grid">
+          <div class="method-card"><b>대상 이벤트</b><p>에란겔·미라마의 총기 및 석궁 사망 이벤트만 포함하고 추락, 익사, 수류탄, 근접 공격, Down and Out은 제외했습니다.</p></div>
+          <div class="method-card"><b>좌표 품질</b><p>NULL, (0,0), 맵 좌표 범위 밖 위치와 공격자·피해자가 같은 자기 사망 이벤트를 제외했습니다.</p></div>
+          <div class="method-card"><b>거리 계산</b><p>√((killer_x-victim_x)²+(killer_y-victim_y)²) ÷ 100으로 cm 좌표를 m 거리로 변환했습니다.</p></div>
+          <div class="method-card"><b>이상값 경계</b><p>2km를 넘는 값은 위치 기록 특성이나 비정상 이벤트의 영향을 줄이기 위해 프로필에서 제외했습니다.</p></div>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <div class="wrap">
+        <div class="previous-report">
+          <div>
+            <h3>기존 환경 사망 맵 분석도 그대로 유지했습니다</h3>
+            <p>정제된 793,356건을 100m 격자로 집계한 익사·추락 히트맵과 후보별 상세 표를 별도 보고서에서 확인할 수 있습니다.</p>
+          </div>
+          <a class="report-link" href="environmental_death_heatmaps.html">맵 보고서 열기 →</a>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer><div class="wrap mono" id="generated-at"></div></footer>
+  <script>
+    const payload = __WEAPON_DISTANCE_PAYLOAD__;
+    const profiles = payload.profiles;
+    const summary = payload.summary;
+    const classOrder = ["Shotgun", "SMG", "AR", "DMR", "SR", "LMG", "Pistol", "Special"];
+    const classLabel = {Shotgun: "샷건", SMG: "기관단총", AR: "돌격소총", DMR: "지정사수", SR: "저격총", LMG: "경기관총", Pistol: "권총", Special: "특수"};
+    const number = new Intl.NumberFormat("ko-KR");
+    const fmtM = function(value) { return Number(value).toFixed(1) + "m"; };
+    const fmtSignedM = function(value) {
+      return (value > 0 ? "+" : "") + Number(value).toFixed(1) + "m";
+    };
+
+    const metricData = [
+      [number.format(summary.valid_event_count), "품질 규칙을 통과한 직접 사망 이벤트"],
+      [summary.weapon_count + "종", "1만 건 이상 관측된 무기"],
+      [fmtM(summary.role_median_spread_m), "샷건과 저격총 무기군 중앙값 차이"],
+      [fmtM(summary.median_map_gap_m), "동일 무기의 맵 간 중앙값 차이 중앙값"]
+    ];
+    document.getElementById("metrics").innerHTML = metricData.map(function(item, index) {
+      return '<div class="metric"><div class="metric-label mono">METRIC '
+        + String(index + 1).padStart(2, "0")
+        + '</div><div class="metric-value">' + item[0]
+        + '</div><div class="metric-note">' + item[1] + "</div></div>";
+    }).join("");
+
+    const weaponRows = profiles
+      .filter(function(row) { return row.scope === "ALL" && row.killed_by !== null; })
+      .sort(function(a, b) {
+        return classOrder.indexOf(a.weapon_class) - classOrder.indexOf(b.weapon_class)
+          || a.median_distance_m - b.median_distance_m;
+      });
+    const maxP90 = Math.max.apply(null, weaponRows.map(function(row) { return row.p90_distance_m; }));
+    document.getElementById("weapon-chart").innerHTML = weaponRows.map(function(row) {
+      const p90Width = Math.max(1, row.p90_distance_m / maxP90 * 100);
+      const medianLeft = row.median_distance_m / maxP90 * 100;
+      return '<div class="weapon-row"><span class="class-tag">'
+        + classLabel[row.weapon_class] + '</span><span class="weapon-name">'
+        + row.killed_by + '</span><div class="track" title="중앙값 '
+        + fmtM(row.median_distance_m) + " / 90백분위 " + fmtM(row.p90_distance_m)
+        + '"><span class="p90" style="width:' + p90Width
+        + '%"></span><span class="median" style="left:' + medianLeft
+        + '%"></span></div><span class="range-value">'
+        + fmtM(row.median_distance_m) + " / " + fmtM(row.p90_distance_m)
+        + "</span></div>";
+    }).join("");
+
+    const classRows = profiles
+      .filter(function(row) { return row.scope === "ALL" && row.killed_by === null; })
+      .sort(function(a, b) {
+        return classOrder.indexOf(a.weapon_class) - classOrder.indexOf(b.weapon_class);
+      });
+    document.getElementById("class-table").innerHTML = classRows.map(function(row) {
+      return "<tr><td><strong>" + classLabel[row.weapon_class] + "</strong></td><td>"
+        + number.format(row.event_count) + "</td><td>" + fmtM(row.median_distance_m)
+        + "</td><td>" + fmtM(row.p75_distance_m) + "</td><td>"
+        + fmtM(row.p90_distance_m) + "</td><td>" + fmtM(row.p99_distance_m)
+        + "</td><td>" + Number(row.share_above_100m_pct).toFixed(2) + "%</td></tr>";
+    }).join("");
+
+    document.getElementById("map-table").innerHTML = summary.map_comparisons.map(function(row) {
+      return "<tr><td><strong>" + row.weapon + "</strong></td><td>"
+        + classLabel[row.weapon_class] + "</td><td>" + fmtM(row.erangel_median_m)
+        + "</td><td>" + fmtM(row.miramar_median_m) + "</td><td>"
+        + fmtSignedM(row.median_gap_m) + "</td><td>"
+        + number.format(row.erangel_event_count) + " / "
+        + number.format(row.miramar_event_count) + "</td></tr>";
+    }).join("");
+
+    const shortestDmr = summary.shortest_dmr;
+    const longestDmr = summary.longest_dmr;
+    const dmrGap = longestDmr.median_distance_m - shortestDmr.median_distance_m;
+    const findings = [
+      ["01", "무기 역할이 거리로 선명하게 분리됨",
+        "샷건 무기군 중앙값은 <strong>" + fmtM(summary.shotgun_median_m)
+        + "</strong>, 저격총은 <strong>" + fmtM(summary.sr_median_m)
+        + "</strong>로 " + fmtM(summary.role_median_spread_m)
+        + " 차이가 났습니다. 역할 구분이 실제 킬 거리에서도 확인됩니다."],
+      ["02", "같은 DMR 안에서도 사용 거리가 다름",
+        "<strong>" + shortestDmr.killed_by + "</strong> 중앙값 "
+        + fmtM(shortestDmr.median_distance_m) + "와 <strong>"
+        + longestDmr.killed_by + "</strong> " + fmtM(longestDmr.median_distance_m)
+        + " 사이에 " + fmtM(dmrGap)
+        + " 차이가 있습니다. DMR을 하나의 역할로만 묶으면 내부 차이를 놓칠 수 있습니다."],
+      ["03", "맵보다 무기 역할의 영향이 더 크게 관측됨",
+        "양쪽 맵에서 충분히 관측된 " + summary.map_comparison_count
+        + "종의 동일 무기 중앙값 차이 중앙값은 <strong>"
+        + fmtM(summary.median_map_gap_m) + "</strong>였습니다. 무기군 간 "
+        + fmtM(summary.role_median_spread_m)
+        + " 차이보다 훨씬 작아 거리 역할이 맵이 바뀌어도 대체로 유지됐습니다."],
+      ["04", "밸런스 판정이 아니라 다음 질문을 만드는 지표",
+        "킬 이벤트에는 총기 사용 횟수와 명중·실패가 없어 강함이나 약함을 확정할 수 없습니다. 대신 역할 중첩이 큰 무기와 같은 군 안에서 거리가 이탈한 무기를 <strong>패치 전후 또는 추가 텔레메트리 검증 후보</strong>로 좁힐 수 있습니다."]
+    ];
+    document.getElementById("findings").innerHTML = findings.map(function(item) {
+      return '<article class="finding"><div class="finding-index">FINDING '
+        + item[0] + "</div><h3>" + item[1] + "</h3><p>" + item[2] + "</p></article>";
+    }).join("");
+    document.getElementById("generated-at").textContent = "GENERATED "
+      + new Date(payload.generated_at).toLocaleString("ko-KR") + " / DUCKDB + SQL";
+  </script>
+</body>
+</html>
