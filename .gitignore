@@ -22,9 +22,12 @@ data/raw/*
 data/staged/*
 !data/staged/.gitkeep
 data/processed/*
+data/reference/maps/*
+!data/reference/maps/.gitkeep
 data/curated/*
 !data/curated/.gitkeep
 data/quarantine/*
+.tmp/
 !data/quarantine/.gitkeep
 
 # Local databases and service volumes
