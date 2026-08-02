@@ -145,8 +145,8 @@
     <p class="lede">익사와 추락 이벤트를 100m × 100m 격자로 집계해 반복적인 집중 지역을 찾고, 상위 1·2·3위 격자 내부의 당시 지도를 확대해 QA 점검 후보를 살펴본다.</p>
 
     <section class="source-strip" aria-label="분석 기준">
-      <div class="source-item"><strong>Erangel 기준 지도</strong><span>2017-11-03 GitHub 커밋에 고정된 8192px 지도. 데이터 수집 기간의 지형 변경 전후를 검토했다.</span></div>
-      <div class="source-item"><strong>Miramar 기준 지도</strong><span>2017-12-23 출시 시점 GitHub 커밋에 고정된 8192px 지도. 데이터 종료 후 첫 월드 변경 이전 버전이다.</span></div>
+      <div class="source-item"><strong>Erangel 기준 지도</strong><span>2017-11-03 GitHub 커밋에 고정된 8192px 원본을 4096px로 최적화한 지도. 데이터 수집 기간의 지형 변경 전후를 검토했다.</span></div>
+      <div class="source-item"><strong>Miramar 기준 지도</strong><span>2017-12-23 출시 시점 GitHub 커밋에 고정된 8192px 원본을 4096px로 최적화한 지도. 데이터 종료 후 첫 월드 변경 이전 버전이다.</span></div>
       <div class="source-item"><strong>100m 격자 기준</strong><span>원본 좌표를 10,000cm 단위로 묶고 지도 배치 시 m로 변환한다. 지도 캔버스는 8192m, 유효 데이터 상한은 8160m다.</span></div>
     </section>
 
@@ -165,7 +165,7 @@
       <span class="legend-item"><i class="swatch fall"></i>추락</span>
       <span class="legend-item"><i class="rank-box"></i>상위 3개 100m 격자</span>
       <span class="legend-item"><i class="detail-ramp"></i>10m 상세 사망 건수: 적음 → 많음</span>
-      <span class="mono">MAP IMAGE: 8192 x 8192</span>
+      <span class="mono">SOURCE 8192 PX · WEB 4096 PX</span>
     </div>
     <section id="map-grid" class="map-grid"></section>
 
