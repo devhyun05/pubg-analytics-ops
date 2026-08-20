@@ -99,6 +99,27 @@ python scripts/load_analytics_to_postgres.py
 
 접속 비밀값은 `.env`에서 읽으며 출력하거나 저장소에 커밋하지 않는다.
 
+### 계정 분리
+
+PostgreSQL 계정은 적재와 조회 역할을 분리한다.
+
+| 계정 | 역할 | 권한 범위 |
+|---|---|---|
+| `pubg_analytics` | 파이프라인 적재 및 스키마 관리 | 테이블 생성·변경, 결과 적재, 뷰 생성 |
+| `analyst_ro` | 분석 및 운영 결과 조회 | `analytics_ops` 스키마 사용과 지정된 뷰 3개의 `SELECT`만 허용 |
+
+`analyst_ro`는 `latest_environmental_hotspots`, `latest_pipeline_runs`,
+`quality_run_summary`만 조회할 수 있다. 원본 테이블인
+`environmental_hotspots`, `pipeline_runs`, `quality_check_results`에는 권한을
+부여하지 않는다. 특히 환경 사망 집계는
+`latest_environmental_hotspots`를 통해 마지막으로 성공한 게시 결과만 보게
+강제한다. 새 테이블·뷰·시퀀스·함수가 생성되어도 조회 권한은 자동으로
+추가되지 않는다.
+
+Superset의 기존 연결 계정은 대시보드 중단을 피하기 위해 이번 변경에서
+교체하지 않는다. 일반 분석·조회 쿼리부터 `analyst_ro`를 사용하고 Superset
+연결 전환은 대시보드 호환성을 확인한 뒤 별도로 진행한다.
+
 ### 최초 정상 게시 결과
 
 2026-07-31 실행 `151b8437-cb67-4a55-875f-12c4a6dbac42`에서 다음 결과를
@@ -191,7 +212,7 @@ PostgreSQL 조회 결과는 [07_BI_DASHBOARD.md](07_BI_DASHBOARD.md)의 입력�
 - 멱등 키로 동일 결과를 안전하게 재적재한다.
 - 부분 적재가 발생하면 `run_id` 기준으로 상태를 확인하고 재처리한다.
 - 스키마 변경은 마이그레이션 이력과 함께 관리한다.
-- BI는 조회 전용 계정을 사용하는 방향으로 설계한다.
+- 분석·조회 쿼리는 조회 전용 계정을 사용하고 Superset 계정 전환은 별도로 검증한다.
 - 연결 실패 시 Parquet과 구조화된 로컬 결과를 보존해 재적재할 수 있게 한다.
 
 ## 9. 채용공고 요구사항과의 연결
@@ -206,7 +227,7 @@ PostgreSQL 조회 결과는 [07_BI_DASHBOARD.md](07_BI_DASHBOARD.md)의 입력�
 ## 10. 미확정 사항
 
 - 실행 및 품질 이력 보존 기간
-- Superset 조회 전용 사용자와 권한
+- Superset 연결을 조회 전용 계정으로 전환할 시점과 호환성
 - 원본 배치 수준 `WARNING` 임계치
 - 스키마 변경 및 AI 보고서 이력 테이블
 - 운영 규모 증가 시 파티셔닝 필요 여부

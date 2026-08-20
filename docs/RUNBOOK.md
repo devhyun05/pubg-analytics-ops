@@ -17,6 +17,61 @@ docker compose version
 Python은 3.12를 사용한다. `.env`는 `.env.example`을 기준으로 생성하고
 비밀번호와 비밀키를 저장소, 로그, 스크린샷에 포함하지 않는다.
 
+## 조회 전용 롤 생성
+
+`.env`의 `POSTGRES_READONLY_PASSWORD`를 로컬 전용 비밀번호로 설정한 뒤
+PostgreSQL 컨테이너가 실행 중인 상태에서 다음 명령을 실행한다.
+
+```bash
+set -a
+source .env
+set +a
+
+docker exec -i pubg-analytics-postgres \
+  psql -U pubg_analytics -d pubg_analytics \
+  -v ro_password="$POSTGRES_READONLY_PASSWORD" \
+  -f - < sql/analytics_readonly_role.sql
+```
+
+SQL은 멱등하게 작성되어 있어 다시 실행할 수 있다. `analyst_ro`는 지정된
+조회 뷰 3개에만 접근하며 적재 테이블에는 접근하지 못한다. Superset의 기존
+연결 계정은 이 절차에서 변경하지 않는다.
+
+### 조회 권한 확인
+
+```bash
+docker exec -e PGPASSWORD="$POSTGRES_READONLY_PASSWORD" -i \
+  pubg-analytics-postgres psql \
+  -U "$POSTGRES_READONLY_USER" -d pubg_analytics \
+  -c "SELECT COUNT(*) FROM analytics_ops.latest_environmental_hotspots;"
+
+docker exec -e PGPASSWORD="$POSTGRES_READONLY_PASSWORD" -i \
+  pubg-analytics-postgres psql \
+  -U "$POSTGRES_READONLY_USER" -d pubg_analytics \
+  -c "SELECT COUNT(*) FROM analytics_ops.environmental_hotspots;"
+
+docker exec -e PGPASSWORD="$POSTGRES_READONLY_PASSWORD" -i \
+  pubg-analytics-postgres psql \
+  -U "$POSTGRES_READONLY_USER" -d pubg_analytics \
+  -c "DROP TABLE analytics_ops.pipeline_runs;"
+
+docker exec -e PGPASSWORD="$POSTGRES_READONLY_PASSWORD" -i \
+  pubg-analytics-postgres psql \
+  -U "$POSTGRES_READONLY_USER" -d pubg_analytics \
+  -c "INSERT INTO analytics_ops.pipeline_runs DEFAULT VALUES;"
+```
+
+첫 번째 조회는 현재 정상 게시 기준 `1600`을 반환해야 한다. 나머지 세
+명령은 모두 `permission denied`로 실패해야 정상이다.
+
+### 조회 전용 비밀번호 교체
+
+1. `.env`의 `POSTGRES_READONLY_PASSWORD`를 새 로컬 비밀번호로 변경한다.
+2. 위의 `analytics_readonly_role.sql` 실행 명령을 다시 실행한다.
+3. 새 비밀번호로 조회 성공과 원본 테이블 접근 거부를 다시 확인한다.
+
+비밀번호는 명령문, 문서, Git 이력에 직접 기록하지 않는다.
+
 ## 전체 실행 순서
 
 ```bash
