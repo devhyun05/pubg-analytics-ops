@@ -58,6 +58,35 @@
 - 개인정보나 API 키를 코드에 하드코딩하지 않는다.
 - 분석·조회 쿼리는 `analyst_ro` 계정을 사용한다. 적재 계정으로 조회하지 않는다.
 
+### Deaths CSV glossary
+
+쿼리를 작성할 때 deaths CSV 컬럼의 의미를 다음 기준으로 해석한다.
+
+원본 컬럼 순서는 다음과 같다.
+
+`killed_by`, `killer_name`, `killer_placement`, `killer_position_x`,
+`killer_position_y`, `map`, `match_id`, `time`, `victim_name`,
+`victim_placement`, `victim_position_x`, `victim_position_y`
+
+- `killed_by`: 피해자를 사망 처리한 무기 또는 원인을 의미한다. 총기·투척 무기뿐 아니라 `Falling`, `Drown`, `Down and Out` 같은 원인도 포함한다.
+- `killer_name`: 사망 이벤트에서 가해자로 기록된 player 이름을 의미한다. 환경 사망이나 자기 사망에서는 다른 player의 이름이 아닐 수 있다.
+- `killer_placement`: 가해자로 기록된 player의 해당 경기 최종 순위를 의미한다. 사망 이벤트 발생 시점의 실시간 순위가 아니다.
+- `killer_position_x`: 사망 이벤트 발생 시점에 가해자로 기록된 player의 X좌표를 의미한다.
+- `killer_position_y`: 사망 이벤트 발생 시점에 가해자로 기록된 player의 Y좌표를 의미한다.
+- `map`: 사망 이벤트가 발생한 경기의 맵을 의미한다.
+- `match_id`: 사망 이벤트가 속한 경기를 식별하는 ID를 의미한다. 같은 경기에서 발생한 이벤트는 같은 `match_id`를 가진다.
+- `time`: 경기 시작 후 사망 이벤트가 발생하기까지의 경과 시간을 초 단위로 의미한다.
+- `victim_name`: 해당 사망 이벤트에서 사망한 player의 이름을 의미한다.
+- `victim_placement`: 사망한 player의 해당 경기 최종 순위를 의미한다. 사망 시점의 생존 인원 순위와 동일하다고 단정하지 않는다.
+- `victim_position_x`: 사망 이벤트 발생 시점에 피해자로 기록된 player의 X좌표를 의미한다.
+- `victim_position_y`: 사망 이벤트 발생 시점에 피해자로 기록된 player의 Y좌표를 의미한다.
+
+컬럼명의 `killer`와 `victim`은 원본 스키마의 구분이다. 컬럼명만 보고
+모든 사망 이벤트에 실제 가해자가 존재한다고 추정하지 않는다.
+특히 `Falling`, `Drown`처럼 사람에게 사살된 이벤트가 아닌 경우에는
+`killer_name`, `killer_placement`, `killer_position_x`,
+`killer_position_y`를 실제 가해자 정보라고 해석하지 않는다.
+
 ## Engineering rules
 
 - 함수와 모듈에 타입 힌트를 사용한다.
