@@ -13,6 +13,9 @@ SQL_PATH = PROJECT_ROOT / "sql" / "environmental_death_heatmap_cells.sql"
 DETAIL_SQL_PATH = (
     PROJECT_ROOT / "sql" / "environmental_death_heatmap_detail_cells.sql"
 )
+SUMMARY_SQL_PATH = (
+    PROJECT_ROOT / "sql" / "environmental_death_report_summary.sql"
+)
 TEMPLATE_PATH = (
     PROJECT_ROOT / "reports" / "templates" / "environmental_death_heatmaps.html"
 )
@@ -69,8 +72,14 @@ def main() -> None:
     try:
         rows = query_rows(conn, SQL_PATH)
         detail_rows = query_rows(conn, DETAIL_SQL_PATH)
+        summary_rows = query_rows(conn, SUMMARY_SQL_PATH)
     finally:
         conn.close()
+
+    if len(summary_rows) != 1:
+        raise ValueError(
+            "Environmental report summary must return exactly one row."
+        )
 
     payload = {
         "generated_at": datetime.now().astimezone().isoformat(timespec="seconds"),
@@ -81,6 +90,7 @@ def main() -> None:
         "coordinate_valid_max_m": 8160,
         "rows": rows,
         "detail_rows": detail_rows,
+        "summary": summary_rows[0],
     }
     template = TEMPLATE_PATH.read_text(encoding="utf-8")
     html = template.replace(
@@ -92,6 +102,11 @@ def main() -> None:
     print("Heatmap panels: 4")
     print(f"Heatmap cells: {len(rows):,}")
     print(f"10m detail cells: {len(detail_rows):,}")
+    print(
+        "Priority candidate: "
+        f"{summary_rows[0]['map']} {summary_rows[0]['killed_by']} "
+        f"count rank #{summary_rows[0]['count_rank']}"
+    )
     for row in rows:
         if row["heat_rank"] <= 3:
             start_x_m = row["grid_x"] * GRID_SIZE_M
