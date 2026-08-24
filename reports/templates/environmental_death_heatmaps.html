@@ -51,6 +51,44 @@
     h1 { max-width: 980px; margin: 12px 0 14px; color: var(--title); font-size: clamp(38px, 6vw, 76px); line-height: 1.02; letter-spacing: -0.055em; }
     .lede { max-width: 870px; margin: 0; color: var(--secondary); font-size: 17px; line-height: 1.7; }
 
+    .decision-summary {
+      display: grid;
+      grid-template-columns: minmax(0, 1.45fr) minmax(360px, 0.75fr);
+      gap: 1px;
+      margin: 34px 0 18px;
+      overflow: hidden;
+      border: 1px solid var(--border);
+      border-radius: 22px;
+      background: var(--border);
+      box-shadow: var(--shadow);
+    }
+    .decision-copy { padding: 28px; background: var(--panel); }
+    .decision-copy .status { color: var(--accent); font-family: "IBM Plex Mono", monospace; font-size: 11px; font-weight: 700; letter-spacing: 0.09em; }
+    .decision-copy h2 { max-width: 790px; margin: 11px 0 13px; color: var(--title); font-size: clamp(26px, 3.4vw, 45px); line-height: 1.1; letter-spacing: -0.045em; }
+    .decision-copy p { max-width: 810px; margin: 0; color: var(--secondary); font-size: 15px; line-height: 1.75; }
+    .decision-boundary { margin-top: 18px; padding-top: 15px; color: var(--muted); border-top: 1px dashed var(--dashed); font-size: 12px; line-height: 1.6; }
+    .decision-boundary strong { color: var(--title); }
+    .decision-metrics { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; background: var(--border); }
+    .decision-metric { display: flex; min-height: 116px; padding: 18px; flex-direction: column; justify-content: end; background: var(--stat); }
+    .decision-metric b { color: var(--title); font-family: "IBM Plex Mono", monospace; font-size: clamp(21px, 2.6vw, 34px); line-height: 1; }
+    .decision-metric.highlight b { color: var(--accent); }
+    .decision-metric span { margin-top: 8px; color: var(--label); font-size: 11px; }
+
+    .funnel {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1px;
+      margin-bottom: 34px;
+      overflow: hidden;
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      background: var(--border);
+    }
+    .funnel-step { position: relative; padding: 17px 20px; background: var(--panel-dark); }
+    .funnel-step b { display: block; color: var(--title); font-family: "IBM Plex Mono", monospace; font-size: 19px; }
+    .funnel-step span { color: var(--muted); font-size: 11px; }
+    .funnel-step:not(:last-child)::after { position: absolute; z-index: 2; top: 50%; right: -9px; color: var(--accent); content: "→"; font-family: "IBM Plex Mono", monospace; transform: translateY(-50%); }
+
     .source-strip {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
@@ -98,7 +136,7 @@
     .swatch.drown { background: var(--drown); }
     .swatch.fall { background: var(--fall); }
     .rank-box { width: 13px; height: 13px; border: 2px solid var(--title); outline: 1px solid var(--border); background: var(--panel-dark); }
-    .detail-ramp { width: 66px; height: 12px; border: 1px solid rgba(69, 198, 234, 0.55); border-radius: 4px; background: linear-gradient(90deg, rgba(69, 198, 234, 0.14), rgba(69, 198, 234, 0.95)); }
+    .detail-ramp { width: 66px; height: 12px; border: 1px solid var(--lowest); border-radius: 4px; background: linear-gradient(90deg, rgba(234, 234, 234, 0.12), rgba(234, 234, 234, 0.92)); }
 
     .map-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
     .map-card { overflow: hidden; border: 1px solid var(--border); border-radius: 21px; background: var(--panel-dark); box-shadow: var(--shadow); }
@@ -131,6 +169,9 @@
     @media (max-width: 760px) {
       main { width: min(100% - 20px, 1480px); padding-top: 28px; }
       .source-strip, .map-grid { grid-template-columns: 1fr; }
+      .decision-summary { grid-template-columns: 1fr; }
+      .funnel { grid-template-columns: 1fr; }
+      .funnel-step:not(:last-child)::after { top: auto; right: 18px; bottom: -11px; transform: rotate(90deg); }
       .candidate-grid { grid-template-columns: 1fr; }
       .rank-detail-grid { grid-template-columns: 1fr; }
       .section-head { display: block; }
@@ -144,6 +185,9 @@
     <h1>환경 사망은 어디에서 반복되는가</h1>
     <p class="lede">익사와 추락 이벤트를 100m × 100m 격자로 집계해 반복적인 집중 지역을 찾고, 상위 1·2·3위 격자 내부의 당시 지도를 확대해 QA 점검 후보를 살펴본다.</p>
 
+    <section id="decision-summary" class="decision-summary" aria-label="핵심 분석 결론"></section>
+    <section id="data-funnel" class="funnel" aria-label="데이터 선별 흐름"></section>
+
     <section class="source-strip" aria-label="분석 기준">
       <div class="source-item"><strong>Erangel 기준 지도</strong><span>2017-11-03 GitHub 커밋에 고정된 8192px 원본을 4096px로 최적화한 지도. 데이터 수집 기간의 지형 변경 전후를 검토했다.</span></div>
       <div class="source-item"><strong>Miramar 기준 지도</strong><span>2017-12-23 출시 시점 GitHub 커밋에 고정된 8192px 원본을 4096px로 최적화한 지도. 데이터 종료 후 첫 월드 변경 이전 버전이다.</span></div>
@@ -151,8 +195,8 @@
     </section>
 
     <div class="section-head">
-      <h2>우선 QA 점검 후보</h2>
-      <p>맵·원인별 100m 격자 1위를 요약하고, 서로 다른 경기 수와 관측 날짜, 원인 내 비중을 함께 본다. 아래 지형 설명은 당시 지도에서 얻은 재현 가설이며 원인을 확정한 결과가 아니다.</p>
+      <h2>1차 탐색 후보</h2>
+      <p>맵·원인별 사망 건수 1위 격자로 넓은 후보를 먼저 좁힌 단계다. 단순 건수 순위가 최종 QA 우선순위를 의미하지 않으며, 위 핵심 결론은 전체 사망 대비 원인 비율과 주변 격자를 이용해 재검증한 결과다.</p>
     </div>
     <section id="candidate-grid" class="candidate-grid"></section>
 
@@ -164,7 +208,7 @@
       <span class="legend-item"><i class="swatch drown"></i>익사</span>
       <span class="legend-item"><i class="swatch fall"></i>추락</span>
       <span class="legend-item"><i class="rank-box"></i>상위 3개 100m 격자</span>
-      <span class="legend-item"><i class="detail-ramp"></i>10m 상세 사망 건수: 적음 → 많음</span>
+      <span class="legend-item"><i class="detail-ramp"></i>10m 상세: 각 패널 색이 진할수록 많음</span>
       <span class="mono">SOURCE 8192 PX · WEB 4096 PX</span>
     </div>
     <section id="map-grid" class="map-grid"></section>
@@ -192,6 +236,33 @@
     };
     const formatter = new Intl.NumberFormat("ko-KR");
     const tooltip = document.getElementById("tooltip");
+
+    function renderExecutiveSummary() {
+      const summary = payload.summary;
+      const startX = Number(summary.grid_x) * payload.grid_size_m;
+      const startY = Number(summary.grid_y) * payload.grid_size_m;
+      const location = `X ${(startX / 1000).toFixed(1)}~${((startX + payload.grid_size_m) / 1000).toFixed(1)}km · Y ${(startY / 1000).toFixed(1)}~${((startY + payload.grid_size_m) / 1000).toFixed(1)}km`;
+      document.getElementById("decision-summary").innerHTML = `
+        <div class="decision-copy">
+          <span class="status">VALIDATED QA PRIORITY · ERANGEL FALLING #${summary.count_rank}</span>
+          <h2>단순 건수 1위보다, 추락 비율이 특이한 2위 격자를 먼저 본다.</h2>
+          <p>${location} 격자는 추락 건수로는 2위였지만, 전체 사망 ${formatter.format(summary.cell_all_death_count)}건 중 ${formatter.format(summary.death_count)}건이 추락이었다. 격자 내 추락 비율은 <strong>${Number(summary.cell_cause_share_pct).toFixed(1)}%</strong>로 주변 8개 격자의 ${Number(summary.neighbor_cause_share_pct).toFixed(2)}%보다 <strong>${Number(summary.neighbor_lift).toFixed(2)}배</strong> 높아 12개 1차 후보 중 우선 재현 대상으로 선정했다.</p>
+          <div class="decision-boundary"><strong>판단 경계</strong> 플레이어 방문량이 없어 위험률이나 지형 결함으로 단정하지 않고, 반복 발생 원인을 직접 확인할 QA 점검 우선순위로 해석한다.</div>
+        </div>
+        <div class="decision-metrics">
+          <div class="decision-metric"><b>${formatter.format(summary.death_count)}</b><span>추락 사망</span></div>
+          <div class="decision-metric"><b>${formatter.format(summary.match_count)}</b><span>관측 경기</span></div>
+          <div class="decision-metric"><b>${formatter.format(summary.date_count)}일</b><span>반복 관측</span></div>
+          <div class="decision-metric highlight"><b>${Number(summary.cell_cause_share_pct).toFixed(1)}%</b><span>격자 내 추락 비율</span></div>
+          <div class="decision-metric highlight"><b>${Number(summary.neighbor_lift).toFixed(2)}×</b><span>주변 격자 대비</span></div>
+          <div class="decision-metric"><b>${Number(summary.top_detail_share_pct).toFixed(2)}%</b><span>가장 많은 10m 격자 비중</span></div>
+        </div>`;
+
+      document.getElementById("data-funnel").innerHTML = `
+        <div class="funnel-step"><b>${formatter.format(summary.raw_input_rows)}</b><span>전체 사망 이벤트</span></div>
+        <div class="funnel-step"><b>${formatter.format(summary.raw_environmental_rows)}</b><span>추락·익사 후보</span></div>
+        <div class="funnel-step"><b>${formatter.format(summary.final_analysis_rows)}</b><span>품질 검증 후 분석 데이터</span></div>`;
+    }
 
     function panelRows(panel) {
       return payload.rows.filter(row => row.map === panel.map && row.killed_by === panel.cause);
@@ -228,7 +299,7 @@
         card.style.setProperty("--candidate-color", panel.color);
         card.style.setProperty("--candidate-tint", panel.tint);
         card.innerHTML = `
-          <span class="candidate-badge">${panel.label} · 1순위</span>
+          <span class="candidate-badge">${panel.label} · 건수 1순위</span>
           <h3>${rangeText(row)}</h3>
           <p class="location">${context.location}</p>
           <p class="comparison">2순위보다 ${leadPct.toFixed(1)}% 많음 · ${payload.grid_size_m}m × ${payload.grid_size_m}m = ${formatter.format(payload.grid_size_m ** 2)}㎡</p>
@@ -236,7 +307,7 @@
             <div class="metric"><b>${formatter.format(row.death_count)}</b><small>사망 건수</small></div>
             <div class="metric"><b>${formatter.format(row.match_count)}</b><small>관측 경기</small></div>
             <div class="metric"><b>${formatter.format(row.date_count)}일</b><small>관측된 날짜 수</small></div>
-            <div class="metric"><b>${Number(row.share_pct).toFixed(3)}%</b><small>같은 맵·원인 내 비중</small></div>
+            <div class="metric"><b>${Number(row.share_pct).toFixed(3)}%</b><small>해당 원인 전체 중 비중</small></div>
           </div>
           <p class="qa-action"><strong>QA 가설</strong> ${context.action}</p>`;
         container.appendChild(card);
@@ -398,7 +469,10 @@
               const y = (cellStartY - startY) * detailScale;
               const cellSize = payload.detail_grid_size_m * detailScale;
               const intensity = Math.sqrt(Number(cell.death_count) / maxDetailDeaths);
-              rankContext.fillStyle = `rgba(69,198,234,${0.10 + intensity * 0.82})`;
+              rankContext.fillStyle = rgba(
+                panel.color,
+                0.10 + intensity * 0.82
+              );
               rankContext.fillRect(x, y, cellSize, cellSize);
             });
 
@@ -477,6 +551,7 @@
       });
     }
 
+    renderExecutiveSummary();
     renderCandidates();
     panels.forEach(renderMap);
     document.getElementById("generated-at").textContent = `GENERATED ${payload.generated_at} · GRID ${payload.grid_size_m}M · LOCAL REPORT`;
