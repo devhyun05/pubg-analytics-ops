@@ -88,7 +88,7 @@ FLOOR(victim_position_y / 10_000) AS grid_y
 
 이 결과는 특정 위치의 문제를 확정하는 증거가 아니라, 지형과 오브젝트를 먼저
 재현 점검할 QA 후보를 정하는 지표다. 전체 결과와 당시 지도 기반 히트맵은
-[환경 사망 지도 보고서](reports/environmental_death_heatmaps.html)에서 확인할 수 있다.
+[환경 사망 지도 보고서](https://devhyun05.github.io/pubg-analytics-ops/reports/environmental_death_heatmaps.html)에서 확인할 수 있다.
 
 ## 무기별 사망 시점 거리 분석
 
@@ -120,7 +120,7 @@ FLOOR(victim_position_y / 10_000) AS grid_y
 
     python scripts/build_weapon_kill_distance_report.py
 
-상세 프로필과 맵 비교는 [무기별 사망 시점 거리 보고서](reports/weapon_kill_distance.html)에서
+상세 프로필과 맵 비교는 [무기별 사망 시점 거리 보고서](https://devhyun05.github.io/pubg-analytics-ops/reports/weapon_kill_distance.html)에서
 확인할 수 있다.
 
 ## References
